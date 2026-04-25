@@ -185,7 +185,7 @@ addC("⚖️ Markt", 20, ["Künstler/Händler", "Ort", "Edelstein/Gegenstand"], 
 addC("🔭 Magierturm", 15, ["Magier", "Ort"], $hand, $combos);
 addC("🕊️⛩️💩 Holy Shit", 50, ["Höheres Wesen", "Mystisch", "Mystisch"], $hand, $combos);
 addC("⚔️ Zu den Waffen", 30, ["König/Königin", "Krieger", "Krieger"], $hand, $combos);
-addC("🐉 Herde", 30, ["Magische Kreatur", "Edelstein/Gegenstand", "Edelstein/Gegenstand"], $hand, $combos);
+addC("🐉 Drachen-Hort", 30, ["Magische Kreatur", "Edelstein/Gegenstand", "Edelstein/Gegenstand"], $hand, $combos);
 addC("🦄 Entführte Prinzessin", 50, ["Magische Kreatur", "Prinz/Prinzessin", "Ort"], $hand, $combos);
 
 if (($counts['Künstler/Händler'] ?? 0) >= 2 && isset($counts['Edelstein/Gegenstand'])) {
@@ -234,7 +234,7 @@ if ($isKomboMode && !empty($opt['combos'])) {
         "Magierturm" => "Arkan",
         "Holy Shit" => "Goettlich", 
         "Waffen" => "Krieg", 
-        "Herde" => "Natur",
+        "HerDrachen-Hortde" => "Drache",
         "Prinzessin" => "Royal", 
         "Karawane" => "Handel", 
         "Patrouille" => "Wald",
