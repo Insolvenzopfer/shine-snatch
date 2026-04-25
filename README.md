@@ -1,7 +1,13 @@
 Shine-Snatch
 
+bitte überprüfe ob der webserver dateien anlegen darf, ansonsten folgende Dateien manuell anlegen und entsprechende Rechte vergeben
+
+user_presets.json 
+snatchlog.txt
+
+
 Ein Karten Sammelspiel aus 60 Karten das in Foundry als Macro eingebunden werden kann
-Sammelkarten als Item im Inventar eines Charakters anlegen mit dem Namen "Shine-Snatch XX" Beispiele
+Sammelkarten als Item im Inventar eines Charakters anlegen mit dem Namen "Shine-Snatch XX" Beispiele:
  - Shine-Snatch 4
  - Shine-Snatch 45 - Fürst der Dunkelheit
  

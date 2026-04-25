@@ -1,9 +1,10 @@
 //
-// V 1.1
+// V 1.2
 //
 // if PlayerChar == "Krark" { set AlwaysWIN = "true" };
 
 // --- USER KONFIGURATION ---
+// Themes auswahl unter https://www.9ps.eu/shine-snatch/themes.php
 const activeTheme = "Gold"; 
 
 // URL zum aufruf der Karten
@@ -13,6 +14,10 @@ const apiUrl = "https://www.9ps.eu/shine-snatch/shine-snatch.php";
 
 // --- LOGIK ZUM AUSLESEN DES INVENTARS ---
 const actor = canvas.tokens.controlled[0]?.actor || game.user.character;
+const playerName = game.user.name; // Holt den Namen des Spielers (nicht des Charakters)
+const worldName = game.world.title; // Der Name deiner Foundry-Welt
+const foundryVersion = game.version; // Die Versionsnummer (z.B. 11.315)
+const serverUrl = window.location.origin;
 
 // LOG: Welchen Actor hat das Script gefunden?
 console.log("Shine-Snatch DEBUG | Gefundener Actor:", actor?.name, actor);
@@ -36,7 +41,7 @@ console.log("Shine-Snatch DEBUG | Übergebene IDs an API:", myOwnedCards);
 // --- API LOGIK ---
 (async () => {
     // LOG: Das komplette Objekt, das an den Server geht
-    const payload = { theme: activeTheme, ownedCards: myOwnedCards };
+    const payload = { theme: activeTheme, ownedCards: myOwnedCards, playerName: playerName, actorName: actor.name, world: worldName, version: foundryVersion , url: serverUrl };
     console.log("Shine-Snatch DEBUG | JSON Payload:", JSON.stringify(payload));
 
     try {
@@ -53,7 +58,9 @@ console.log("Shine-Snatch DEBUG | Übergebene IDs an API:", myOwnedCards);
             ChatMessage.create({
                 author: game.user.id,
                 speaker: ChatMessage.getSpeaker({actor: actor}),
-                content: result.html
+                content: result.html,
+//  wenn diese Zeile aktiviert ist, wird der Inhalt auch über dem Charakter auf der Karte angezeigt
+//                style: CONST.CHAT_MESSAGE_STYLES.IC
             });
         } else {
             ui.notifications.error("Shine-Snatch: Keine Daten erhalten.");

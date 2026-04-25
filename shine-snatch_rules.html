@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">   
+    <title>Shine-Snatch Regelwerk (Dark Mode)</title>
+    <style>
+        /* Dark Theme Basis */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            padding: 30px; 
+            line-height: 1.6; 
+            color: #e0e0e0; 
+            background-color: #121212; /* Sehr dunkles Grau */
+        }
+
+        .container { 
+            max-width: 900px; 
+            margin: auto; 
+            background: #1e1e1e; /* Etwas helleres Grau für den Content */
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
+            border: 1px solid #333;
+        }
+        
+        h1, h2 { 
+            color: #ffffff; 
+            border-bottom: 2px solid #333; 
+            padding-bottom: 10px; 
+            margin-top: 30px;
+        }
+
+        h1 { color: #bb86fc; } /* Akzentfarbe für den Haupttitel */
+
+        p { margin-bottom: 15px; color: #b0b0b0; }
+
+        /* Tabellen Styling */
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 20px 0; 
+            font-size: 0.95em; 
+            background-color: #252525;
+        }
+
+        th, td { 
+            border: 1px solid #444; 
+            padding: 12px; 
+            text-align: left; 
+        }
+
+        th { 
+            background-color: #333; 
+            color: #bb86fc; 
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        /* Farbkategorien (angepasst für Dark Mode) */
+        .bg-green  { background: #2e7d32; color: #ffffff; font-weight: bold; }
+        .bg-yellow { background: #fbc02d; color: #000000; font-weight: bold; }
+        .bg-orange { background: #e67e22; color: #ffffff; font-weight: bold; }
+        .bg-dark-orange { background: #a84310; color: #ffffff; font-weight: bold; }
+        .bg-red    { background: #c62828; color: #ffffff; font-weight: bold; }
+        
+        .total-row { 
+            background: #2c2c2c; 
+            font-weight: bold; 
+            color: #ffffff;
+        }
+
+        .highlight { 
+            color: #cf6679; 
+            font-weight: bold; 
+        }
+
+        strong { color: #ffffff; }
+
+        /* Hover-Effekt für Tabellenzeilen */
+        tbody tr:hover {
+            background-color: #2a2a2a;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Kartenspiel: Shine-Snatch Regeln</h1>
+
+    <h2>1. Kartenübersicht</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Kategorien</th>
+                <th>Anzahl</th>
+                <th>Würfelzahl</th>
+                <th>Wert</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>✨ Höheres Wesen</td><td>2</td><td>59-60</td><td class="bg-green">30</td></tr>
+            <tr><td>🤴 König/Königin</td><td>4</td><td>55-58</td><td class="bg-yellow">20</td></tr>
+            <tr><td>👑 Prinz/Prinzessin</td><td>4</td><td>51-54</td><td class="bg-orange">15</td></tr>
+            <tr><td>🦄 Magische Kreatur</td><td>4</td><td>47-50</td><td class="bg-orange">15</td></tr>
+            <tr><td>🧙 Magier</td><td>5</td><td>42-46</td><td class="bg-dark-orange">10</td></tr>
+            <tr><td>⚔️ Krieger</td><td>5</td><td>37-41</td><td class="bg-dark-orange">10</td></tr>
+            <tr><td>🏹 Scouts</td><td>5</td><td>32-36</td><td class="bg-dark-orange">10</td></tr>
+            <tr><td>🔮 Mystisch</td><td>5</td><td>27-31</td><td class="bg-dark-orange">10</td></tr>
+            <tr><td>👨‍🌾 Künstler/Händler</td><td>6</td><td>21-26</td><td class="bg-red">5</td></tr>
+            <tr><td>🏰 Ort</td><td>6</td><td>15-20</td><td class="bg-red">5</td></tr>
+            <tr><td>👾 Bestie/Monster</td><td>7</td><td>8-14</td><td class="bg-red">5</td></tr>
+            <tr><td>💎 Edelstein/Gegenstand</td><td>7</td><td>1-7</td><td class="bg-red">5</td></tr>
+            <tr class="total-row">
+                <td>Gesamt</td>
+                <td>60</td>
+                <td>-</td>
+                <td>-</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>2. Wie man es spielt</h2>
+    <p>Jeder Spieler hat ein Deck mit <strong>60 Karten</strong> vor sich liegen. Zu Beginn werden <strong>5 Karten</strong> gezogen.</p>
+    <p>Ziel ist es, die höchste Punktzahl zu erreichen. Punkte werden durch den Einzelwert der Karten und durch das Bilden von <strong>Kombinationen</strong> erzielt. Jede Karte darf nur in einer Kombination sein.</p>
+    <p><span class="highlight">Sammelkarten Style Punkte:</span> Sehr seltene Karten können zusätzlich <span class="highlight">1d4 Extra-Punkte</span> einbringen.</p>
+
+    <h2>3. Kombinationen (Siegpunkte)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Kombination</th>
+                <th>Punkte</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>🏘️ Kleines Königreich</td><td>König/Königin/Prinz/Prinzessin, Krieger, Ort</td><td>30</td></tr>
+            <tr><td>🏰 Großes Königreich</td><td>König/Königin, Prinz/Prinzessin, Krieger, Ort</td><td>40</td></tr>
+            <tr><td>🛡️ Abenteuergruppe</td><td>Magier, Krieger, Scout, Mystisch</td><td>50</td></tr>
+            <tr><td>🐾 Bestienhorde</td><td>3-5 Bestie/Monster</td><td>15 / 30 / 60</td></tr>
+            <tr><td>⚖️ Markt</td><td>Künstler/Händler, Orts, Edelstein/Gegenstand</td><td>20</td></tr>
+            <tr><td>🔭 Magierturm</td><td>Magier, Ort</td><td>15</td></tr>
+            <tr><td>⛩️💩 Holy Shit</td><td>Mystisch, Mystisch, Höheres Wesen</td><td>50</td></tr>
+            <tr><td>⚔️ Zu den Waffen</td><td>König/Königin, Kriegers, Kriegers</td><td>30</td></tr>
+            <tr><td>🐉 Herde</td><td>Magische Kreaturs, Edelstein/Gegenstand, Edelstein/Gegenstand</td><td>30</td></tr>
+            <tr><td>🦄 Entführte Prinzessin</td><td>Magische Kreatur, Prinz/Prinzessin, Ort</td><td>50</td></tr>
+            <tr><td>📦 Kleine Karawane</td><td>Künstler/Händler, Künstler/Händler, Edelstein/Gegenstand</td><td>20</td></tr>
+            <tr><td>🐪 Große Karawane</td><td>Künstler/Händler, Künstler/Händler, Edelstein/Gegenstand, Abenteurer</td><td>50</td></tr>
+            <tr><td>🗺️ Karte</td><td>Edelstein/Gegenstand, 2-4 Orts</td><td>15 / 30 / 60</td></tr>
+            <tr><td>🏕️ Waldläufer Patrouille</td><td>Scout, Ort</td><td>15</td></tr>
+            <tr><td>🏮 Schrein</td><td>Mystisch, Ort</td><td>15</td></tr>
+            <tr><td>🔨 Schmiede</td><td>Krieger, Edelstein/Gegenstand, Künstler/Händler</td><td>35</td></tr>
+            <tr><td>🌌 Domänenentfaltung</td><td>Höheres Wesen, Höheres Wesen</td><td>40</td></tr>
+            <tr><td>🐺 Packleader</td><td>Magische Kreatur, Bestie/Monster, Bestie/Monster</td><td>35</td></tr>
+            <tr><td>🛡️ Paladine</td><td>Mystisch, Krieger, Krieger</td><td>25</td></tr>
+            <tr><td>🍃 Druid</td><td>Mystisch, Scout, Bestie/Monster</td><td>25</td></tr>
+            <tr><td>🧪 Für die Wissenschaft</td><td>Magiers, Magische Kreaturs, Edelstein/Gegenstands</td><td>35</td></tr>
+            <tr><td>👪 Königsfamilie</td><td>König/Königin (2x), Prinz/Prinzessin (2x)</td><td>45</td></tr>
+            <tr><td>🔱 Heilige Dreifaltigkeit</td><td>Höheres Wesen, Magische Kreaturs, Mystisch</td><td>35</td></tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

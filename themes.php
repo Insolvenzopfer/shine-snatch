@@ -53,12 +53,11 @@ $currentConfig = $themes[$currentThemeName] ?? [];
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/nano.min.css"/>
 <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <style>
     /* Kleiner Fix für das Design des Buttons */
     .pickr { margin-right: 10px; }
     .pcr-button { border: 1px solid #444 !important; border-radius: 4px !important; }
-</style>
-<style>
     body { background: #121212; color: #eee; font-family: 'Segoe UI', sans-serif; }
     .main-container { padding: 40px 20px; }
     .preview-pane { 
@@ -75,12 +74,64 @@ $currentConfig = $themes[$currentThemeName] ?? [];
         background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
     }
     .theme-card:hover { border-color: #daa520; background: #252525; }
-    .theme-card.active { border-color: #daa520; background: #2a2a2a; box-shadow: 0 0 10px rgba(218, 165, 20, 0.2); }
+    .theme-card.active { 
+        border-color: #daa520; 
+        background: #2a2a2a; 
+        box-shadow: 0 0 10px rgba(218, 165, 20, 0.2); 
+        transition: all 0.3s ease;
+        transform: translateX(5px);
+    }
     .color-picker-group { display: flex; align-items: center; gap: 10px; }
     input[type="color"] { width: 40px; height: 30px; border: none; background: none; cursor: pointer; }
-    h3 { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+    h3 { border-bottom: 1px solid #7c7c7c; padding-bottom: 10px; margin-bottom: 20px; }
     .hidden-radio { display: none; }
-    .text-muted { color: #888 !important; /* Hier deine Wunschfarbe für die Anleitung */ }
+    .text-muted { color: #bdbdbd !important; /* Hier deine Wunschfarbe für die Anleitung */ }
+    /* Erlaubt der linken Seite zu scrollen, während die rechte stehen bleibt */
+.sticky-column {
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 60px); /* Höhe des Sichtfensters minus Padding */
+}
+
+.scrollable-content {
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    padding-right: 15px; /* Platz für den Scrollbalken */
+}
+
+/* Optional: Hübscherer Scrollbar für ein modernes dunkles Design */
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: #daa520;
+}
+
+/* Das Eingabefeld, das gerade "gehovert" wird */
+.highlight-input {
+    background-color: #3b310d !important; /* Dunkles Gold/Gelb */
+    border-color: #daa520 !important;
+    box-shadow: 0 0 10px rgba(218, 165, 20, 0.5);
+    transition: all 0.2s ease;
+    transform: scale(1.02);
+}
+
+/* Optional: Zeiger-Feedback in der Vorschau */
+[data-edit-key] {
+    cursor: help;
+}
+.highlight-input {
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+
 </style>
 </head>
 <body>
@@ -133,35 +184,62 @@ $currentConfig = $themes[$currentThemeName] ?? [];
 
 <?php else: ?>
     <h3>✨ Theme Gallery</h3>
-                    
-<div class="mt-4 p-2 border border-warning rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm">
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-warning" style="font-size: 1.2rem;">⚡</span>
-            <div style="line-height: 1.1;">
-                <strong class="text-warning" style="font-size: 0.9rem;">Foundry Macro</strong><br>
-                <small class="text-muted" style="font-size: 0.75rem;">Script-Inhalt für Foundry VTT</small>
-            </div>
+            
+    
+<div class="mt-2 p-2 border border-warning rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm">
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-warning" style="font-size: 1.2rem;">⚡</span>
+        <div style="line-height: 1.1;">
+            <strong class="text-warning" style="font-size: 0.9rem;">Foundry Macro</strong><br>
+            <small class="text-muted" style="font-size: 0.75rem;">Script-Inhalt kopieren</small>
         </div>
-        <button class="btn btn-warning btn-sm" id="copyMacroBtn" onclick="copyMacroToClipboard()" style="white-space: nowrap; min-width: 160px; font-weight: bold;">
-            📋 Script kopieren
-        </button>
     </div>
+    <button class="btn btn-warning btn-sm" id="copyMacroBtn" onclick="copyMacroToClipboard()" style="white-space: nowrap; min-width: 160px; font-weight: bold;">
+        📋 Script kopieren
+    </button>
+</div>
+<div class="mt-4 p-2 border border-info rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm" 
+     style="cursor: pointer;" 
+     data-bs-toggle="collapse" 
+     data-bs-target="#installGuide" 
+     aria-expanded="false" 
+     aria-controls="installGuide">
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-info" style="font-size: 1.2rem;">🛠️</span>
+        <div style="line-height: 1.1;">
+            <strong class="text-info" style="font-size: 0.9rem;">Infos & Installation</strong><br>
+            <small class="text-muted" style="font-size: 0.75rem;">Klicken zum Ausklappen</small>
+        </div>
+    </div>
+    <span class="text-info me-2" id="collapseIcon">▼</span>
+</div>
+<div class="collapse" id="installGuide">
+    <div class="p-3 bg-dark border border-info border-top-0 rounded-bottom" style="font-size: 0.85rem; background-color: #1d1d1d !important;">
+        <div class="mb-3">
+            <span class="text-info mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">📖 Regeln & Details:</span><br>
+            <code class="text-info" style="word-break: break-all;">
+                <a href="https://www.9ps.eu/shine-snatch/shine-snatch_rules.html" target="_blank" style="text-decoration: none;">https://www.9ps.eu/shine-snatch/shine-snatch_rules.html</a>
+            </code>
+        </div>
 
-    <div class="mt-2 p-3 bg-dark border border-secondary rounded-bottom" style="font-size: 0.85rem; border-top: none !important; background-color: #1d1d1d !important;">
-        <h6 class="text-secondary mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">🛠️ Kurzanleitung zur Installation:</h6>
+        <h6 class="text-info mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">🛠️ Kurzanleitung zur Installation:</h6>
         <ol class="ps-3 mb-0 text-muted" style="line-height: 1.4;">
             <li class="mb-1">Wähle dein gewünschtes Theme und klicke danach oben auf <strong>"Script kopieren"</strong></li>
-            <li class="mb-1">In Foundry klicke unten in der Schnellauswahlleiste mit einem <strong>Linksklick</strong> auf ein freies Feld (oder Rechtsklick zum Bearbeiten).</li>
+            <li class="mb-1">In Foundry klicke unten in der Schnellauswahlleiste mit einem <strong>Linksklick</strong> auf ein freies Feld (oder Rechtsklick zum Bearbeiten eines vorhandenen).</li>
             <li class="mb-1">Einen passenden <strong>Namen</strong> (z.B. Shine-Snatch) vergeben.</li>
             <li class="mb-1">Den <strong>Type</strong> von "Chat" auf <strong>"Script"</strong> ändern.</li>
             <li class="mb-1">Den Inhalt der Zwischenablage <strong>(Script kopieren)</strong> in das große Textfeld einfügen.</li>
-            <li class="mb-1">Überprüfe dein gewünschtes Theme, Items mit dem Namen <strong>"Shine-Snatch *"</strong> (* = die Nummer z.B. 1, 15, 53) werden automatisch aus dem Inventar, auch Container, des ausgewählen Charakter gesucht. Es geht auch <strong>"Shine-Snatch 23 - Name der Karte"</strong>.</li>
+            <li class="mb-1">Überprüfe dein gewünschtes Theme, es gibt 2 Sonder Themes die hier nicht angezeigt werden <strong>"Zufall"</strong> und <strong>"Kombo-Theme,Barde"</strong> (wählt automatisch ein Theme wenn eine Kombination gefunden worden ist, ansonsnten das Theme dahinter gewählt [z.B. Barde, Gold, Schmiede]).</li>
+            <li class="mb-1">Items mit dem Namen <strong>"Shine-Snatch *"</strong> (* = die Nummer z.B. 1, 15, 53) werden automatisch aus dem Inventar, auch Container, des ausgewählen Charakter gesucht. Es geht auch <strong>"Shine-Snatch 23 - Name der Karte"</strong>.</li>
             <li><strong>Optionales Icon:</strong> Oben auf das Bild-Icon klicken und unten bei <em>Selected</em> diese URL eintragen:<br>
-                <code class="text-info" style="word-break: break-all;">https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp</code>
+                <code class="text-info" style="word-break: break-all;"><a href="https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp">https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp</a></code>
             </li>
             <li class="mb-1">Dann noch speichern und <strong>viel Glück beim Spielen</strong></li>
         </ol>
     </div>
+</div>
+
+
                 
     <p class="text-muted">Wähle ein Theme aus oder kopiere den Namen:</p>
     <div id="themeSelector">
@@ -199,6 +277,7 @@ $currentConfig = $themes[$currentThemeName] ?? [];
         </div>
 
 <div class="col-md-7">
+    <div class="sticky-column">
     <h3 class="text-center mb-4">👁️ Foundry Chat Vorschau</h3>
     
     <div class="card bg-dark border-secondary mb-4 p-3 shadow-lg" style="max-width: 500px; margin: 0 auto;">
@@ -228,16 +307,20 @@ $currentConfig = $themes[$currentThemeName] ?? [];
             </button>
         </div>
     </div>
+    
 
     <div class="d-flex justify-content-center">
         <div id="previewArea" class="preview-pane">
             </div>
+    </div>
     </div>
 </div>
     </div>
 </div>
 
 <script>
+
+
 // Für den Viewer-Modus: Theme-Daten global halten
 let currentViewerConfig = <?= json_encode($currentConfig) ?>;
 
@@ -383,6 +466,7 @@ async function updatePreview() {
     const ownedIds = document.getElementById('testOwned').value.split(',').map(Number);
 
     try {
+        const serverUrl = window.location.origin;
         const response = await fetch('https://www.9ps.eu/shine-snatch/shine-snatch.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -390,7 +474,10 @@ async function updatePreview() {
                 theme: "PREVIEW_MODE", // Signal an PHP
                 customConfig: themeConfig, // Schickt die aktuellen Editor-Farben mit!
                 overrideHand: handIds,
-                ownedCards: ownedIds
+                ownedCards: ownedIds,
+                world: "Theme-Editor", 
+                version: "" , 
+                url: serverUrl
             })
         });
 
@@ -409,6 +496,85 @@ function createNew() {
         document.getElementById('themeNameInput').value = name;
         document.getElementById('themeForm').submit();
     }
+}
+
+// Navigation mit Pfeiltasten
+document.addEventListener('keydown', function(e) {
+    // Prüfen, ob der User gerade in einem Textfeld schreibt (dann Navigation deaktivieren)
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); // Verhindert das Scrollen der Seite
+
+        const isAdmin = <?= json_encode($is_logged_in) ?>;
+        
+        if (isAdmin) {
+            // ADMIN LOGIK: Navigiere in der Select-Box
+            const select = document.querySelector('select[name="theme"]');
+            if (select) {
+                let currentIndex = select.selectedIndex;
+                if (e.key === 'ArrowDown' && currentIndex < select.options.length - 1) {
+                    select.selectedIndex = currentIndex + 1;
+                } else if (e.key === 'ArrowUp' && currentIndex > 0) {
+                    select.selectedIndex = currentIndex - 1;
+                }
+                select.dispatchEvent(new Event('change')); // Trigger die Formular-Absendung
+            }
+        } else {
+            // GALLERY LOGIK: Navigiere durch die Karten
+            const cards = Array.from(document.querySelectorAll('.theme-card'));
+            const activeCard = document.querySelector('.theme-card.active');
+            let currentIndex = cards.indexOf(activeCard);
+
+            if (e.key === 'ArrowDown' && currentIndex < cards.length - 1) {
+                cards[currentIndex + 1].click();
+                cards[currentIndex + 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else if (e.key === 'ArrowUp' && currentIndex > 0) {
+                cards[currentIndex - 1].click();
+                cards[currentIndex - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+});
+
+// Wir nutzen "mouseover" auf der previewArea, um Elemente mit data-edit-key zu finden
+document.getElementById('previewArea').addEventListener('mouseover', (e) => {
+    const target = e.target.closest('[data-edit-keys]');
+    if (!target) return;
+
+    // Hole den String "colorBg,colorBoltCore,..." und mache ein Array daraus
+    const keys = target.getAttribute('data-edit-keys').split(',');
+    
+    document.querySelectorAll('.highlight-input').forEach(el => el.classList.remove('highlight-input'));
+
+    keys.forEach(key => {
+        const inputField = document.getElementById(key.trim());
+        if (inputField) {
+            inputField.classList.add('highlight-input');
+        }
+    });
+});
+
+// Highlight entfernen, wenn die Maus die Vorschau verlässt
+document.getElementById('previewArea').addEventListener('mouseout', () => {
+    document.querySelectorAll('.highlight-input').forEach(el => el.classList.remove('highlight-input'));
+});
+
+
+// Sicherer Check, ob wir uns im Gallery-Modus befinden
+const collapseElement = document.getElementById('installGuide');
+const collapseIcon = document.getElementById('collapseIcon');
+
+// Nur ausführen, wenn beide Elemente existieren
+if (collapseElement && collapseIcon) {
+    collapseElement.addEventListener('show.bs.collapse', () => {
+        collapseIcon.innerText = '▲';
+    });
+    collapseElement.addEventListener('hide.bs.collapse', () => {
+        collapseIcon.innerText = '▼';
+    });
 }
 
 // Initialer Start

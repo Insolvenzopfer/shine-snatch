@@ -5,10 +5,16 @@ error_reporting(E_ALL);
 
 $apiUrl = "https://www.9ps.eu/shine-snatch/shine-snatch.php";
 
+
 // Test-Daten (wie im Macro)
 $testData = [
     "theme" => "Krark",
-    "ownedCards" => [5, 12, 28] 
+    "ownedCards" => [5, 12, 28] ,
+    "customConfig" => "Krark", // Schickt die aktuellen Editor-Farben mit!
+    "overrideHand" => [20,57,16,37,27],
+    "world" => "Theme-Editor", 
+    "version"=> "Version" , 
+    "url"  => "Debug-URL"
 ];
 
 $ch = curl_init($apiUrl);
@@ -22,7 +28,6 @@ curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 $response = curl_exec($ch);
 $info = curl_getinfo($ch);
 $error = curl_error($ch);
-curl_close($ch);
 ?>
 
 <!DOCTYPE html>
