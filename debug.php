@@ -3,7 +3,7 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-$apiUrl = "https://www.9ps.eu/shine-snatch/shine-snatch.php";
+$apiUrl = "https://".$_SERVER['HTTP_HOST']."/shine-snatch/shine-snatch_json_data.php";
 
 
 // Test-Daten (wie im Macro)

@@ -360,7 +360,7 @@ $html = "
 // NEU: Log-Sperre für den Theme-Editor
 $world = $input['world'] ?? 'Unbekannt';
 
-$excludedWorlds = ["Theme-Editor", "Dashboard", "Test-System", "Vorschau", "Test-Umgebung"];
+$excludedWorlds = ["Theme-Editor", "Dashboard",'Dashboard-EyeCatcher', "Test-System", "Vorschau", "Test-Umgebung"];
 
 if (!in_array($world, $excludedWorlds)) {
 

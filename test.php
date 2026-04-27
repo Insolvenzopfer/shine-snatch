@@ -21,7 +21,7 @@
     <h2>API Tester</h2>
     <form id="apiForm">
         <label>API URL</label>
-        <input type="text" id="apiUrl" value="https://www.9ps.eu/shine-snatch/shine-snatch.php">
+        <input type="text" id="apiUrl" value="https://<?php echo $_SERVER['HTTP_HOST']; ?>/shine-snatch/shine-snatch.php">
 
         <label>actorName (Discord Username)</label>
         <input type="text" id="actorName" value="DeinName">

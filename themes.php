@@ -218,7 +218,7 @@ $currentConfig = $themes[$currentThemeName] ?? [];
         <div class="mb-3">
             <span class="text-info mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">📖 Regeln & Details:</span><br>
             <code class="text-info" style="word-break: break-all;">
-                <a href="https://www.9ps.eu/shine-snatch/shine-snatch_rules.html" target="_blank" style="text-decoration: none;">https://www.9ps.eu/shine-snatch/shine-snatch_rules.html</a>
+                <a href="shine-snatch_rules.html" target="_blank" style="text-decoration: none;">https://<?php echo $_SERVER['HTTP_HOST']; ?>/shine-snatch/shine-snatch_rules.html</a>
             </code>
         </div>
 
@@ -232,7 +232,7 @@ $currentConfig = $themes[$currentThemeName] ?? [];
             <li class="mb-1">Überprüfe dein gewünschtes Theme, es gibt 2 Sonder Themes die hier nicht angezeigt werden <strong>"Zufall"</strong> und <strong>"Kombo-Theme,Barde"</strong> (wählt automatisch ein Theme wenn eine Kombination gefunden worden ist, ansonsnten das Theme dahinter gewählt [z.B. Barde, Gold, Schmiede]).</li>
             <li class="mb-1">Items mit dem Namen <strong>"Shine-Snatch *"</strong> (* = die Nummer z.B. 1, 15, 53) werden automatisch aus dem Inventar, auch Container, des ausgewählen Charakter gesucht. Es geht auch <strong>"Shine-Snatch 23 - Name der Karte"</strong>.</li>
             <li><strong>Optionales Icon:</strong> Oben auf das Bild-Icon klicken und unten bei <em>Selected</em> diese URL eintragen:<br>
-                <code class="text-info" style="word-break: break-all;"><a href="https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp">https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp</a></code>
+                <code class="text-info" style="word-break: break-all;"><a href="https://<?php echo $_SERVER['HTTP_HOST']; ?>/dnd/items/Krark/shine-snatch.webp">https://<?php echo $_SERVER['HTTP_HOST']; ?>/dnd/items/Krark/shine-snatch.webp</a></code>
             </li>
             <li class="mb-1">Dann noch speichern und <strong>viel Glück beim Spielen</strong></li>
         </ol>
@@ -258,7 +258,7 @@ $currentConfig = $themes[$currentThemeName] ?? [];
                     </div>
                     
                     <div class="d-flex gap-2 align-items-center">
-                        <span class="badge" style="background: <?= $cfg['colorPrimary'] ?>; color: <?= $cfg['colorBoltCore'] ?>; border: 1px solid rgba(255,255,255,0.2);">
+                        <span class="badge" style="background: <?= $cfg['colorBg'] ?>; color: <?= $cfg['colorBoltCore'] ?>; border: 1px solid rgba(255,255,255,0.2);">
                             Vorschau
                         </span>
                         
@@ -467,7 +467,7 @@ async function updatePreview() {
 
     try {
         const serverUrl = window.location.origin;
-        const response = await fetch('https://www.9ps.eu/shine-snatch/shine-snatch.php', {
+        const response = await fetch('https://<?php echo $_SERVER['HTTP_HOST']; ?>/shine-snatch/shine-snatch.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
