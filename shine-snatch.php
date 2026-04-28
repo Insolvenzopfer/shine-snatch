@@ -159,23 +159,33 @@ $usedIdx = array_merge(...array_column($opt['combos'], 'indices') ?: [[]]);
 $highestComboTheme = (!empty($opt['combos'])) ? $opt['combos'][0]['class'] : null;
 
 // --- 5. THEME AUSWÄHLEN ---
-$rawThemeInput = isset($input['theme']) ? trim((string)$input['theme']) : '';
-$actorName = $input['actorName'] ?? null;
-$presetsFile = 'user_presets.json';
+if (($input['theme'] ?? '') === "PREVIEW_MODE" && isset($input['customConfig'])) {
+    // 1. FALL: Der Theme-Editor schickt eine direkte Konfiguration
+    $cfg = $input['customConfig'];
+    $finalKey = "Vorschau";
+    $isKomboMode = false; 
+} else {
+    // 2. FALL: Normaler Spiel-Ablauf
+    $rawThemeInput = isset($input['theme']) ? trim((string)$input['theme']) : '';
+    $actorName = $input['actorName'] ?? null;
+    $presetsFile = 'user_presets.json';
 
-// Falls Input leer, versuche Preset zu laden (bevor die Funktion läuft)
-if ($rawThemeInput === '' && !empty($actorName)) {
-    if (file_exists($presetsFile)) {
-        $userPresets = json_decode(@file_get_contents($presetsFile), true) ?? [];
-        $rawThemeInput = $userPresets[$actorName] ?? '';
+    // Preset-Logik: Nur laden, wenn der Input wirklich leer ist
+    if ($rawThemeInput === '' && !empty($actorName)) {
+        if (file_exists($presetsFile)) {
+            $userPresets = json_decode(@file_get_contents($presetsFile), true) ?? [];
+            $rawThemeInput = $userPresets[$actorName] ?? '';
+        }
     }
+
+    // Deine neue 5-Punkte-Funktion aufrufen
+    $themeResult = getFinalThemeConfig($rawThemeInput, $highestComboTheme, $themes, $actorName);
+    
+    $cfg = $themeResult['cfg'];
+    $finalKey = $themeResult['key'];
+    // Falls du isKomboMode im HTML/Log brauchst:
+    $isKomboMode = ($themeResult['mode'] === "kombo");
 }
-
-// Jetzt die Funktion aufrufen (WICHTIG: actorName als 4. Parameter)
-$themeResult = getFinalThemeConfig($rawThemeInput, $highestComboTheme, $themes, $actorName);
-
-$cfg = $themeResult['cfg'];
-$finalKey = $themeResult['key'];
 
 // --- 6. HTML GENERIERUNG (Vollständige Version) ---
 $base = array_sum(array_column($hand, 'points'));
@@ -234,7 +244,7 @@ $total = $subTotal + $opt['pts'];
 $html = "
 <div style='font-family: \"Signika\", sans-serif; border: 2px solid {$cfg['colorAccent']}; border-radius: 10px; background: {$cfg['colorBg']}; padding: 12px; color: {$cfg['colorTextMain']}; box-shadow: 0 6px 12px {$cfg['shadowColor']};' data-edit-key='shadowColor,colorTextMain,colorBg,colorAccent'>
 <h2 style='border-bottom: 2px solid {$cfg['colorPrimary']}; margin-top: 0; text-align: center; color: {$cfg['colorBoltCore']}; text-transform: uppercase; text-shadow: 0 0 10px {$cfg['colorPrimary']}, 0 0 20px {$cfg['colorPrimary']};'  data-edit-keys='colorPrimary,colorBoltCore,colorPrimary'>
-        Test {$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
+        🃏{$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
     </h2>
     
     <p style='margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg['colorAccent']};'  data-edit-keys='colorAccent'>{$cfg['labelHand']}</p>

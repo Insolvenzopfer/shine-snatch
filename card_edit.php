@@ -183,7 +183,7 @@ if (isset($_POST['save'])) {
         <div class="section">
             <h2>Kombinationen <button type="button" class="btn-add" onclick="addRow('combosTable')">+ Neu</button></h2>
             <table id="combosTable">
-                <thead><tr><th>Emoji</th><th>Name</th><th>Punkte</th><th>Bedarf</th><th>Kat</th><th width="40"></th></tr></thead>
+                <thead><tr><th>Emoji</th><th>Name</th><th>Punkte</th><th>Bedarf</th><th>Kat (Kombo-Theme)</th><th width="40"></th></tr></thead>
                 <tbody>
                     <?php foreach ($data['combos'] as $idx => $cb): ?>
                     <tr>

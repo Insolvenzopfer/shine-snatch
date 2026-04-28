@@ -175,6 +175,9 @@
         <div class="nav-item" onclick="loadPage('shine-snatch_rules.php', this)">
             <span class="icon">📜</span><span>Regeln</span>
         </div>
+        <div class="nav-item" onclick="loadPage('card_edit.php', this)">
+            <span class="icon">📝</span><span>Edit-Tool</span>
+        </div>
         <div class="nav-item" onclick="loadPage('test.php', this)">
             <span class="icon">🧪</span><span>Test-Tool</span>
         </div>
