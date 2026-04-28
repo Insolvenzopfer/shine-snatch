@@ -1,0 +1,422 @@
+{
+    "cardTypes": [
+        {
+            "id": "EDL",
+            "name": "Edelstein\/Gegenstand",
+            "count": 7,
+            "points": 5,
+            "startId": 1,
+            "emoji": "💎"
+        },
+        {
+            "id": "BST",
+            "name": "Bestie\/Monster",
+            "count": 7,
+            "points": 5,
+            "startId": 8,
+            "emoji": "👾"
+        },
+        {
+            "id": "ORT",
+            "name": "Ort",
+            "count": 6,
+            "points": 5,
+            "startId": 15,
+            "emoji": "🏰"
+        },
+        {
+            "id": "HND",
+            "name": "Künstler\/Händler",
+            "count": 6,
+            "points": 5,
+            "startId": 21,
+            "emoji": "👨‍🌾"
+        },
+        {
+            "id": "MYS",
+            "name": "Mystisch",
+            "count": 5,
+            "points": 10,
+            "startId": 27,
+            "emoji": "🔮"
+        },
+        {
+            "id": "SCT",
+            "name": "Scout",
+            "count": 5,
+            "points": 10,
+            "startId": 32,
+            "emoji": "🏹"
+        },
+        {
+            "id": "KRG",
+            "name": "Krieger",
+            "count": 5,
+            "points": 10,
+            "startId": 37,
+            "emoji": "⚔️"
+        },
+        {
+            "id": "MAG",
+            "name": "Magier",
+            "count": 5,
+            "points": 10,
+            "startId": 42,
+            "emoji": "🧙"
+        },
+        {
+            "id": "MKR",
+            "name": "Magische Kreatur",
+            "count": 4,
+            "points": 15,
+            "startId": 47,
+            "emoji": "🦄"
+        },
+        {
+            "id": "PRZ",
+            "name": "Prinz\/Prinzessin",
+            "count": 4,
+            "points": 15,
+            "startId": 51,
+            "emoji": "👑"
+        },
+        {
+            "id": "KNG",
+            "name": "König\/Königin",
+            "count": 4,
+            "points": 20,
+            "startId": 55,
+            "emoji": "🤴"
+        },
+        {
+            "id": "HWS",
+            "name": "Höheres Wesen",
+            "count": 2,
+            "points": 30,
+            "startId": 59,
+            "emoji": "✨"
+        }
+    ],
+    "groups": [
+        {
+            "id": "ABENTEURER",
+            "cards": [
+                "KRG",
+                "MAG",
+                "SCT"
+            ]
+        },
+        {
+            "id": "KRONE",
+            "cards": [
+                "KNG",
+                "PRZ"
+            ]
+        }
+    ],
+    "combos": [
+        {
+            "emoji": "🐾🐾🐾",
+            "name": "Bestienhorde (5)",
+            "points": 60,
+            "needs": [
+                "BST",
+                "BST",
+                "BST",
+                "BST",
+                "BST"
+            ],
+            "cat": "Rudel"
+        },
+        {
+            "emoji": "🐾🐾",
+            "name": "Bestienhorde (4)",
+            "points": 30,
+            "needs": [
+                "BST",
+                "BST",
+                "BST",
+                "BST"
+            ],
+            "cat": "Rudel"
+        },
+        {
+            "emoji": "🐾",
+            "name": "Bestienhorde (3)",
+            "points": 15,
+            "needs": [
+                "BST",
+                "BST",
+                "BST"
+            ],
+            "cat": "Rudel"
+        },
+        {
+            "emoji": "🗺️🗺️🗺️",
+            "name": "Karte (4)",
+            "points": 60,
+            "needs": [
+                "EDL",
+                "ORT",
+                "ORT",
+                "ORT",
+                "ORT"
+            ],
+            "cat": "Entdecker"
+        },
+        {
+            "emoji": "🗺️🗺️",
+            "name": "Karte (3)",
+            "points": 30,
+            "needs": [
+                "EDL",
+                "ORT",
+                "ORT",
+                "ORT"
+            ],
+            "cat": "Entdecker"
+        },
+        {
+            "emoji": "🗺️",
+            "name": "Karte (2)",
+            "points": 15,
+            "needs": [
+                "EDL",
+                "ORT",
+                "ORT"
+            ],
+            "cat": "Entdecker"
+        },
+        {
+            "emoji": "🏰",
+            "name": "Großes Königreich",
+            "points": 40,
+            "needs": [
+                "KNG",
+                "PRZ",
+                "KRG",
+                "ORT"
+            ],
+            "cat": "Royal"
+        },
+        {
+            "emoji": "🏘️",
+            "name": "Kleines Königreich",
+            "points": 30,
+            "needs": [
+                "KRONE",
+                "KRG",
+                "ORT"
+            ],
+            "cat": "Royal"
+        },
+        {
+            "emoji": "🛡️",
+            "name": "Abenteuergruppe",
+            "points": 50,
+            "needs": [
+                "MAG",
+                "KRG",
+                "SCT",
+                "MYS"
+            ],
+            "cat": "Helden"
+        },
+        {
+            "emoji": "⚖️",
+            "name": "Markt",
+            "points": 20,
+            "needs": [
+                "HND",
+                "ORT",
+                "EDL"
+            ],
+            "cat": "Handel"
+        },
+        {
+            "emoji": "🔭",
+            "name": "Magierturm",
+            "points": 15,
+            "needs": [
+                "MAG",
+                "ORT"
+            ],
+            "cat": "Arkan"
+        },
+        {
+            "emoji": "🕊️💩",
+            "name": "Holy Shit",
+            "points": 50,
+            "needs": [
+                "HWS",
+                "MYS",
+                "MYS"
+            ],
+            "cat": "Goettlich"
+        },
+        {
+            "emoji": "⚔️",
+            "name": "Zu den Waffen",
+            "points": 30,
+            "needs": [
+                "KNG",
+                "KRG",
+                "KRG"
+            ],
+            "cat": "Krieg"
+        },
+        {
+            "emoji": "🐉",
+            "name": "Drachen-Hort",
+            "points": 30,
+            "needs": [
+                "MKR",
+                "EDL",
+                "EDL"
+            ],
+            "cat": "Drache"
+        },
+        {
+            "emoji": "🦄",
+            "name": "Entführte Prinzessin",
+            "points": 50,
+            "needs": [
+                "MKR",
+                "PRZ",
+                "ORT"
+            ],
+            "cat": "Royal"
+        },
+        {
+            "emoji": "🐪",
+            "name": "Große Karawane",
+            "points": 50,
+            "needs": [
+                "HND",
+                "HND",
+                "EDL",
+                "ABENTEURER"
+            ],
+            "cat": "Handel"
+        },
+        {
+            "emoji": "📦",
+            "name": "Kleine Karawane",
+            "points": 20,
+            "needs": [
+                "HND",
+                "HND",
+                "EDL"
+            ],
+            "cat": "Handel"
+        },
+        {
+            "emoji": "🏕️",
+            "name": "Waldläufer Patrouille",
+            "points": 15,
+            "needs": [
+                "SCT",
+                "ORT"
+            ],
+            "cat": "Wald"
+        },
+        {
+            "emoji": "🏮",
+            "name": "Schrein",
+            "points": 15,
+            "needs": [
+                "MYS",
+                "ORT"
+            ],
+            "cat": "Mystik"
+        },
+        {
+            "emoji": "🔨",
+            "name": "Schmiede",
+            "points": 35,
+            "needs": [
+                "KRG",
+                "EDL",
+                "HND"
+            ],
+            "cat": "Schmiede"
+        },
+        {
+            "emoji": "🌌",
+            "name": "Domänenentfaltung",
+            "points": 40,
+            "needs": [
+                "HWS",
+                "HWS"
+            ],
+            "cat": "Kosmisch"
+        },
+        {
+            "emoji": "🐺",
+            "name": "Rudelsführer",
+            "points": 35,
+            "needs": [
+                "MKR",
+                "BST",
+                "BST"
+            ],
+            "cat": "Rudel"
+        },
+        {
+            "emoji": "🛡️",
+            "name": "Paladine",
+            "points": 25,
+            "needs": [
+                "MYS",
+                "KRG",
+                "KRG"
+            ],
+            "cat": "Heilig"
+        },
+        {
+            "emoji": "🍃",
+            "name": "Druide",
+            "points": 25,
+            "needs": [
+                "MYS",
+                "SCT",
+                "BST"
+            ],
+            "cat": "Natur"
+        },
+        {
+            "emoji": "🧪",
+            "name": "Für die Wissenschaft",
+            "points": 35,
+            "needs": [
+                "MAG",
+                "MKR",
+                "EDL"
+            ],
+            "cat": "Alchemie"
+        },
+        {
+            "emoji": "👪",
+            "name": "Königsfamilie",
+            "points": 45,
+            "needs": [
+                "KNG",
+                "KNG",
+                "PRZ",
+                "PRZ"
+            ],
+            "cat": "Empire"
+        },
+        {
+            "emoji": "🔱",
+            "name": "Heilige Dreifaltigkeit",
+            "points": 35,
+            "needs": [
+                "HWS",
+                "MKR",
+                "MYS"
+            ],
+            "cat": "Heilig"
+        }
+    ]
+}

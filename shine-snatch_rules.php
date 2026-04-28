@@ -188,15 +188,147 @@ th::after {
 .card-row:hover {
     background-color: rgba(187, 134, 252, 0.1) !important; /* Ganz leichter lila Schimmer beim Hover */
 }
+
+/* Zeilen, die für eine Combo mit der aktuellen Auswahl infrage kommen */
+.card-row.possible-match {
+    background-color: rgba(2, 49, 45, 0.52) !important; /* Dezentes Türkis */
+    border-left: 4px solid var(--secondary, #03dac6);
+    transition: all 0.2s ease;
+}
+
+/* Optional: Ein kleiner Badge oder Text-Hinweis in der Zeile */
+.card-row.possible-match td:first-child::after {
+    content: ' ✨';
+    font-size: 0.8em;
+}
+
+.guide-container {
+            max-width: 850px;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            border: 1px solid var(--border);
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 30px;
+            margin-bottom: 30px;
+        }
+.tagline {
+            font-style: italic;
+            color: var(--secondary);
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        /* Highlights */
+        .highlight {
+            color: var(--secondary);
+            font-weight: bold;
+        }
+        /* Phasen-Liste */
+        .phase {
+            display: flex;
+            margin-bottom: 20px;
+            align-items: flex-start;
+        }
+
+        .phase-number {
+            background: var(--primary);
+            color: #ffffff;
+            font-weight: bold;
+            min-width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .phase-content strong {
+            color: #fff;
+            display: block;
+            font-size: 1.1em;
+        }
+
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>Kartenspiel: Shine-Snatch Regeln</h1>
-    <h2>1. Wie man es spielt</h2>
-    <p>Jeder Spieler hat ein Deck mit <strong>60 Karten</strong> vor sich liegen. Zu Beginn werden <strong>5 Karten</strong> gezogen.</p>
-    <p>Ziel ist es, die höchste Punktzahl zu erreichen. Punkte werden durch den Einzelwert der Karten und durch das Bilden von <strong>Kombinationen</strong> erzielt. Jede Karte darf nur in einer Kombination sein.</p>
-    <p><span class="highlight">Sammelkarten Style Punkte:</span> Sehr seltene Karten können zusätzlich <span class="highlight">1d4 Extra-Punkte</span> einbringen.</p>
+    <h1>🌌 Shine-Snatch</h1>
+        <div class="tagline">Das Gefüge der Sphären</div>
+    </div>
+
+    <section>
+        <h2>1. Die Geschichte</h2>
+        <p>
+            In der Welt von <strong>Shine-Snatch</strong> bist du ein "Sphären-Wanderer". Dein Ziel ist es, aus dem Chaos des Äthers die mächtigsten Wesen, Orte und Artefakte zu manifestieren. 
+            Doch eine einzelne Karte ist nur ein Funken im Dunkeln. Erst wenn du Synergien zwischen den Elementen erkennst und Kombinationen bildest, entfesselst du das volle Potenzial deines Decks.
+        </p>
+        <p>
+            Wirst du eine unbezwingbare Horde anführen, ein heiliges Imperium errichten oder die Geheimnisse der arkanen Wissenschaft entschlüsseln?
+        </p>
+    </section>
+
+    <section>
+        <h2>1.1 Das Ziel des Spiels</h2>
+        <p>
+            Sammle durch geschicktes Kombinieren deiner Handkarten die höchste Punktzahl. Das Spiel belohnt nicht nur den reinen Wert der Karten, sondern vor allem dein Auge für <span class="highlight">Kombinationen (Combos)</span>.
+        </p>
+    </section>
+
+    <section>
+        <h2>1.2 Spielvorbereitung</h2>
+        <ul>
+            <li>Jeder Spieler verfügt über ein Deck aus <strong>60 Karten</strong>.</li>
+            <li>Zu Beginn einer Runde ziehst du <strong>5 Karten</strong> aus deinem Deck.</li>
+            <li>Die Karten haben unterschiedliche Seltenheiten und Punktwerte.</li>
+        </ul>
+    </section>
+
+    <section>
+        <h2>1.3 📜 Spielablauf & Wertung</h2>
+        
+        <div class="phase">
+            <div class="phase-number">A</div>
+            <div class="phase-content">
+                <strong>Der Basiswert</strong>
+                Die Summe der auf den Karten aufgedruckten Punkte bildet dein Fundament.
+            </div>
+        </div>
+
+        <div class="phase">
+            <div class="phase-number">B</div>
+            <div class="phase-content">
+                <strong>Der Würfel-Bonus</strong>
+                Besitzt du eine Karte als physische oder markierte "Sammelkarte", darfst du einen <span class="highlight">1d4 Extra-Punkte</span> werfen.
+            </div>
+        </div>
+
+        <div class="phase">
+            <div class="phase-number">C</div>
+            <div class="phase-content">
+                <strong>Die Synergie-Phase</strong>
+                Das System berechnet automatisch die optimale Wertung deiner Kombinationen. 
+                <em>Wichtig: Jede Karte kann nur für EINE Kombination verwendet werden.</em>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="info-box">
+            <h3>💡 Die Gruppen-Regel</h3>
+            <p>
+                Einige Kombinationen verlangen keine spezifische Karte, sondern eine <strong>Gruppe</strong> (z. B. KRONE oder ABENTEURER). 
+            </p>
+        </div>
+    </section>
+
     
         <h2>2. Gruppen-Definitionen</h2>
     <p><small>Diese Gruppen zählen in Kombinationen als Platzhalter für die enthaltenen Karten.</small></p>
@@ -319,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let selectedIds = new Set();
 
-    // --- SORTIER FUNKTION ---
+    // --- SORTIER FUNKTION (Dein Original) ---
     thElements.forEach(th => {
         th.addEventListener('click', () => {
             const table = th.closest('table');
@@ -353,9 +485,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- FILTER FUNKTION (Jetzt korrekt im Scope) ---
+    // --- FILTER FUNKTION (Mit neuer Highlight-Logik) ---
     function updateComboFilter() {
         if (!filterDisplay || !resetButton) return;
+
+        // Reset: Alle "Möglich"-Klassen entfernen
+        cardRows.forEach(row => row.classList.remove('possible-match'));
 
         if (selectedIds.size === 0) {
             comboRows.forEach(row => row.classList.remove('hidden'));
@@ -366,19 +501,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resetButton.style.display = 'inline-block';
 
-        // Namen für Tags sammeln
         let filterNames = [];
-        selectedIds.forEach(id => {
-            const row = document.querySelector(`.card-row[data-id="${id}"]`);
-            if (row) {
-                // Emoji + Name extrahieren
-                filterNames.push(row.cells[0].innerText.trim());
-            }
-        });
-
-        // Tags anzeigen (Farbe fixiert, da --primary oft fehlte)
-        filterDisplay.innerHTML = '<span class="filter-label">Filter aktiv für:</span>' + 
-            filterNames.map(name => `<span class="filter-tag" style="background:#bb86fc; color:#000;">${name}</span>`).join('');
+        let possiblePartnerIds = new Set(); // Hier sammeln wir IDs, die Combos vervollständigen könnten
 
         // Combo Zeilen filtern
         comboRows.forEach(row => {
@@ -397,17 +521,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!found) allSelectedAreIncluded = false;
             });
 
-            row.classList.toggle('hidden', !allSelectedAreIncluded);
+            if (allSelectedAreIncluded) {
+                row.classList.remove('hidden');
+                // NEU: Wenn Combo passt, merke dir alle benötigten Karten dieser Combo
+                needs.forEach(reqId => {
+                    const group = groupMapping.find(g => g.id === reqId);
+                    if (group) {
+                        group.cards.forEach(cId => possiblePartnerIds.add(cId));
+                    } else {
+                        possiblePartnerIds.add(reqId);
+                    }
+                });
+            } else {
+                row.classList.add('hidden');
+            }
         });
 
-        // Leeres Ergebnis prüfen
+        // Partner-Karten in der Übersicht markieren
+        cardRows.forEach(row => {
+            const rowId = row.dataset.id;
+            if (!selectedIds.has(rowId) && possiblePartnerIds.has(rowId)) {
+                row.classList.add('possible-match');
+            }
+        });
+
+        // Tags anzeigen
+        selectedIds.forEach(id => {
+            const row = document.querySelector(`.card-row[data-id="${id}"]`);
+            if (row) filterNames.push(row.cells[0].innerText.trim());
+        });
+
+        filterDisplay.innerHTML = '<span class="filter-label">Filter aktiv für:</span>' + 
+            filterNames.map(name => `<span class="filter-tag" style="background:#bb86fc; color:#000;">${name}</span>`).join('');
+
         const visibleCombos = document.querySelectorAll('.combo-row:not(.hidden)').length;
         if (visibleCombos === 0) {
             filterDisplay.innerHTML += `<div style="color:#cf6679; margin-top:5px; font-size:0.9em;">⚠️ Keine exakte Kombination möglich.</div>`;
         }
     }
 
-    // --- EVENT LISTENER ---
+    // --- EVENT LISTENER (Dein Original) ---
     cardRows.forEach(row => {
         row.addEventListener('click', () => {
             const cardId = row.dataset.id;
@@ -424,7 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     resetButton.addEventListener('click', () => {
         selectedIds.clear();
-        cardRows.forEach(row => row.classList.remove('selected'));
+        cardRows.forEach(row => {
+            row.classList.remove('selected');
+            row.classList.remove('possible-match');
+        });
         updateComboFilter();
     });
 });

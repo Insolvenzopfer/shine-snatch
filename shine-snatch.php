@@ -9,112 +9,79 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') exit;
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) exit(json_encode(["error" => "No input"]));
 
+$gamedatafile = 'game_data.json';
+$game_data = json_decode(file_get_contents($gamedatafile), true);
+$themes = json_decode(file_get_contents('themes.json'), true);
+
 /**
  * Kernfunktion für die Theme-Verwaltung
  */
-function processThemeLogic($themeInput, $actorName, $themes) {
+function getFinalThemeConfig($themeInput, $bestComboTheme, $themes, $actorName = null) {
     $presetsFile = 'user_presets.json';
-    $status = "Standard";
-    
-    // Mapping für Case-Insensitive Suche
+    $themeInput = trim((string)$themeInput);
     $themeMapLower = [];
-    foreach ($themes as $key => $val) {
-        $themeMapLower[mb_strtolower((string)$key)] = $key;
-    }
-
-    $userPresets = [];
-    if (file_exists($presetsFile) && filesize($presetsFile) > 0) {
-        $userPresets = json_decode(file_get_contents($presetsFile), true) ?? [];
-    }
-
-    $workTheme = mb_strtolower(trim((string)$themeInput));
-
-    // --- A) SETZEN LOGIK ---
-    if (str_starts_with($workTheme, 'set:')) {
-        $fullStoreValue = trim(substr($themeInput, 4));
-        $userPresets[$actorName] = $fullStoreValue;
-        @file_put_contents($presetsFile, json_encode($userPresets, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        $themeInput = $fullStoreValue;
-        $status = "Preset gespeichert";
-    } 
-    // --- B) AUTOMATISCHES LADEN ---
-    elseif (($workTheme === 'gold' || empty($workTheme)) && !empty($actorName)) {
-        if (isset($userPresets[$actorName])) {
-            $themeInput = $userPresets[$actorName];
-            $status = "Preset geladen";
-        }
-    }
-
-    // --- C) THEME-KOMPONENTEN TRENNEN ---
-    $parts = explode(',', (string)$themeInput);
-    $primary = mb_strtolower(trim($parts[0] ?? 'gold'));
-    $secondary = mb_strtolower(trim($parts[1] ?? 'gold'));
-
+    foreach ($themes as $key => $val) { $themeMapLower[mb_strtolower((string)$key)] = $key; }
     $allKeys = array_keys($themes);
-    $finalKey = "Gold"; // Absoluter Standard
 
-    // 1. Priorität: Zufall direkt
-    if ($primary === 'zufall') {
-        $finalKey = $allKeys[array_rand($allKeys)];
-    } 
-    // 2. Priorität: Kombo-Theme Modus
-    elseif ($primary === 'kombo-theme') {
-        if ($secondary === 'zufall') {
-            $finalKey = $allKeys[array_rand($allKeys)];
-        } else {
-            // Prüfen ob das Fallback-Theme nach dem Komma existiert
-            $finalKey = $themeMapLower[$secondary] ?? "Gold";
+    // --- NEU: SPEICHER-LOGIK (set:) ---
+    if (str_starts_with(strtolower($themeInput), 'set:')) {
+        // Den eigentlichen Wert nach "set:" extrahieren
+        $valueToSave = trim(substr($themeInput, 4));
+        
+        if (!empty($actorName)) {
+            // Presets laden
+            $userPresets = [];
+            if (file_exists($presetsFile)) {
+                $userPresets = json_decode(@file_get_contents($presetsFile), true) ?? [];
+            }
+            
+            // Wenn der Wert leer ist (nur "set:"), lösche das Preset
+            if ($valueToSave === '') {
+                unset($userPresets[$actorName]);
+            } else {
+                $userPresets[$actorName] = $valueToSave;
+            }
+            
+            // Speichern
+            @file_put_contents($presetsFile, json_encode($userPresets, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         }
-    } 
-    // 3. Priorität: Existiert das gesetzte Theme im JSON?
-    elseif (isset($themeMapLower[$primary])) {
-        $finalKey = $themeMapLower[$primary];
+        
+        // Nach dem Speichern arbeiten wir mit dem extrahierten Wert weiter
+        $themeInput = $valueToSave;
     }
-    // 4. Fallback: Immer Gold (bereits durch Initialisierung gesetzt)
 
-    return [
-        "cfg" => $themes[$finalKey] ?? $themes[array_keys($themes)[0]], // Falls Gold auch fehlt, nimm das erste
-        "key" => $finalKey,
-        "isKomboMode" => ($primary === 'kombo-theme'),
-        "status" => $status
-    ];
-}
+    // --- AB HIER DEINE 5-PUNKTE-LOGIK ---
 
-// 1. DATEN & THEME laden
+    // 1. Wenn kombo-theme aktiv ist UND eine Kombination gefunden wurde
+    $isKomboRequested = str_contains(strtolower($themeInput), 'kombo-theme');
+    if ($isKomboRequested && !empty($bestComboTheme)) {
+        if (isset($themes[$bestComboTheme])) {
+            return ["cfg" => $themes[$bestComboTheme], "key" => $bestComboTheme, "mode" => "kombo"];
+        }
+    }
 
-$themes = json_decode(file_get_contents('themes.json'), true);
+    // 2. Putzen: kombo-theme und Kommas entfernen
+    $cleanTheme = trim(str_replace(['kombo-theme', ','], '', strtolower($themeInput)));
 
-// NEU: Prüfung auf Preview-Mode VOR der normalen Logik
-if (($input['theme'] ?? '') === "PREVIEW_MODE" && isset($input['customConfig'])) {
-    // Wenn Vorschau, nutzen wir direkt die mitschickten Daten aus dem Editor
-    $cfg = $input['customConfig'];
-    $finalKey = "Vorschau";
-    $isKomboMode = false; // In der Vorschau meist nicht gewünscht
-} else {
-    // Normaler Ablauf für das Spiel
-    $res = processThemeLogic($input['theme'] ?? 'Gold', $input['actorName'] ?? null, $themes);
-    $cfg = $res['cfg'];
-    $finalKey = $res['key'];
-    $isKomboMode = $res['isKomboMode'];
+    // 3. Wenn jetzt noch "zufall" drin steht
+    if ($cleanTheme === 'zufall') {
+        $randKey = $allKeys[array_rand($allKeys)];
+        return ["cfg" => $themes[$randKey], "key" => $randKey, "mode" => "zufall"];
+    }
+
+    // 4. Wenn ein spezifisches Theme gesetzt ist
+    if (!empty($cleanTheme) && isset($themeMapLower[$cleanTheme])) {
+        $finalKey = $themeMapLower[$cleanTheme];
+        return ["cfg" => $themes[$finalKey], "key" => $finalKey, "mode" => "fixed"];
+    }
+
+    // 5. Fallback: Gold
+    $defaultKey = $themeMapLower['gold'] ?? $allKeys[0];
+    return ["cfg" => $themes[$defaultKey], "key" => $defaultKey, "mode" => "default"];
 }
 
 // --- 2. DECK & KARTEN ---
-$cardDist = [
-    ["name" => "Edelstein/Gegenstand", "count" => 7, "points" => 5, "startId" => 1, "emoji" => "💎"],
-    ["name" => "Bestie/Monster", "count" => 7, "points" => 5, "startId" => 8, "emoji" => "👾"],
-    ["name" => "Ort", "count" => 6, "points" => 5, "startId" => 15, "emoji" => "🏰"],
-    ["name" => "Künstler/Händler", "count" => 6, "points" => 5, "startId" => 21, "emoji" => "👨‍🌾"],
-    ["name" => "Mystisch", "count" => 5, "points" => 10, "startId" => 27, "emoji" => "🔮"],
-    ["name" => "Scout", "count" => 5, "points" => 10, "startId" => 32, "emoji" => "🏹"],
-    ["name" => "Krieger", "count" => 5, "points" => 10, "startId" => 37, "emoji" => "⚔️"],
-    ["name" => "Magier", "count" => 5, "points" => 10, "startId" => 42, "emoji" => "🧙"],
-    ["name" => "Magische Kreatur", "count" => 4, "points" => 15, "startId" => 47, "emoji" => "🦄"],
-    ["name" => "Prinz/Prinzessin", "count" => 4, "points" => 15, "startId" => 51, "emoji" => "👑"],
-    ["name" => "König/Königin", "count" => 4, "points" => 20, "startId" => 55, "emoji" => "🤴"],
-    ["name" => "Höheres Wesen", "count" => 2, "points" => 30, "startId" => 59, "emoji" => "✨"]
-];
-
-// 2. Deck bauen (Muss auch immer laufen, damit wir Karten-Daten für die IDs haben!)
+$cardDist = $game_data['cardTypes'];
 $deck = [];
 foreach ($cardDist as $c) {
     for ($i = 0; $i < $c['count']; $i++) {
@@ -125,86 +92,52 @@ foreach ($cardDist as $c) {
 if (isset($input['overrideHand']) && is_array($input['overrideHand'])) {
     $hand = [];
     foreach ($input['overrideHand'] as $searchId) {
-        foreach ($deck as $card) {
-            if ($card['id'] == $searchId) { $hand[] = $card; break; }
-        }
+        foreach ($deck as $card) { if ($card['id'] == $searchId) { $hand[] = $card; break; } }
     }
 } else {
     shuffle($deck);
     $hand = array_slice($deck, 0, 5);
 }
 
-// 3. WÜRFELN
+// --- 3. WÜRFELN & SYNERGIEN ---
 $specBonusTotal = 0;
 $specHits = [];
 foreach ($hand as $card) {
     if (in_array($card['id'], $input['ownedCards'] ?? [])) {
-        $roll = rand(1, 4);
-        $specBonusTotal += $roll;
+        $roll = rand(1, 4); $specBonusTotal += $roll;
         $specHits[] = "#{$card['id']} ($roll)";
     }
 }
 
-// 4. SYNERGIEN
-$combos = [];
-function addC($label, $points, $types, $hand, &$combos) {
-    $matchedIndices = [];
-    foreach ($types as $t) {
-        $found = false;
+$nameToId = [];
+foreach ($game_data['cardTypes'] as $ct) { $nameToId[$ct['name']] = $ct['id']; }
+
+$combos = []; 
+foreach ($game_data['combos'] as $c) {
+    $needed = array_count_values($c['needs']);
+    $isPossible = true; $tempMatchedIndices = []; $matchedIds = [];
+    foreach ($needed as $reqId => $amount) {
+        $foundCount = 0;
         foreach ($hand as $idx => $card) {
-            if ($card['name'] === $t && !in_array($idx, $matchedIndices)) {
-                $matchedIndices[] = $idx;
-                $found = true;
-                break;
+            if (in_array($idx, $tempMatchedIndices)) continue;
+            $currentCardId = $nameToId[$card['name']] ?? null;
+            $isGroupMatch = false;
+            foreach ($game_data['groups'] as $g) { if ($g['id'] === $reqId && in_array($currentCardId, $g['cards'])) { $isGroupMatch = true; break; } }
+            if ($currentCardId === $reqId || $isGroupMatch) {
+                $tempMatchedIndices[] = $idx; $matchedIds[] = $card['id']; $foundCount++;
+                if ($foundCount >= $amount) break;
             }
         }
-        if (!$found) return;
+        if ($foundCount < $amount) { $isPossible = false; break; }
     }
-    $combos[] = ["label" => $label, "points" => $points, "indices" => $matchedIndices, "ids" => array_map(fn($i) => $hand[$i]['id'], $matchedIndices)];
+    if ($isPossible) {
+        $combos[] = ['label' => $c['emoji'] . " " . $c['name'], 'points' => $c['points'], 'class' => $c['cat'], 'indices' => $tempMatchedIndices, 'ids' => $matchedIds];
+    }
 }
 
-$counts = array_count_values(array_column($hand, 'name'));
+usort($combos, function($a, $b) { return $b['points'] <=> $a['points']; });
 
-
-// Alle Regeln aus deinem Macro
-if (($counts['Bestie/Monster'] ?? 0) >= 5) addC("🐾🐾🐾 Bestienhorde (5)", 60, array_fill(0, 5, "Bestie/Monster"), $hand, $combos);
-if (($counts['Bestie/Monster'] ?? 0) >= 4) addC("🐾🐾 Bestienhorde (4)", 30, array_fill(0, 4, "Bestie/Monster"), $hand, $combos);
-if (($counts['Bestie/Monster'] ?? 0) >= 3) addC("🐾 Bestienhorde (3)", 15, array_fill(0, 3, "Bestie/Monster"), $hand, $combos);
-
-if (isset($counts['Edelstein/Gegenstand'])) {
-    if (($counts['Ort'] ?? 0) >= 4) addC("🗺️🗺️🗺️ Karte (4+)", 60, ["Edelstein/Gegenstand", "Ort", "Ort", "Ort", "Ort"], $hand, $combos);
-    if (($counts['Ort'] ?? 0) >= 3) addC("🗺️🗺️ Karte (3)", 30, ["Edelstein/Gegenstand", "Ort", "Ort", "Ort"], $hand, $combos);
-    if (($counts['Ort'] ?? 0) >= 2) addC("🗺️ Karte (2)", 15, ["Edelstein/Gegenstand", "Ort", "Ort"], $hand, $combos);
-}
-
-addC("🏰 Großes Königreich", 40, ["König/Königin", "Prinz/Prinzessin", "Krieger", "Ort"], $hand, $combos);
-addC("🏘️ Kleines Königreich (K)", 30, ["König/Königin", "Krieger", "Ort"], $hand, $combos);
-addC("🏘️ Kleines Königreich (P)", 30, ["Prinz/Prinzessin", "Krieger", "Ort"], $hand, $combos);
-addC("🛡️ Abenteuergruppe", 50, ["Magier", "Krieger", "Scout", "Mystisch"], $hand, $combos);
-addC("⚖️ Markt", 20, ["Künstler/Händler", "Ort", "Edelstein/Gegenstand"], $hand, $combos);
-addC("🔭 Magierturm", 15, ["Magier", "Ort"], $hand, $combos);
-addC("🕊️⛩️💩 Holy Shit", 50, ["Höheres Wesen", "Mystisch", "Mystisch"], $hand, $combos);
-addC("⚔️ Zu den Waffen", 30, ["König/Königin", "Krieger", "Krieger"], $hand, $combos);
-addC("🐉 Drachen-Hort", 30, ["Magische Kreatur", "Edelstein/Gegenstand", "Edelstein/Gegenstand"], $hand, $combos);
-addC("🦄 Entführte Prinzessin", 50, ["Magische Kreatur", "Prinz/Prinzessin", "Ort"], $hand, $combos);
-
-if (($counts['Künstler/Händler'] ?? 0) >= 2 && isset($counts['Edelstein/Gegenstand'])) {
-    addC("🐪 Große Karawane", 50, ["Künstler/Händler", "Künstler/Händler", "Edelstein/Gegenstand", "Krieger"], $hand, $combos);
-    addC("📦 Kleine Karawane", 20, ["Künstler/Händler", "Künstler/Händler", "Edelstein/Gegenstand"], $hand, $combos);
-}
-addC("🏕️ Waldläufer Patrouille", 15, ["Scout", "Ort"], $hand, $combos);
-addC("🏮 Schrein", 15, ["Mystisch", "Ort"], $hand, $combos);
-addC("🔨 Schmiede", 35, ["Krieger", "Edelstein/Gegenstand", "Künstler/Händler"], $hand, $combos);
-addC("🌌 Domänenentfaltung", 40, ["Höheres Wesen", "Höheres Wesen"], $hand, $combos);
-addC("🐺 Rudelsführer", 35, ["Magische Kreatur", "Bestie/Monster", "Bestie/Monster"], $hand, $combos);
-addC("🛡️ Paladine", 25, ["Mystisch", "Krieger", "Krieger"], $hand, $combos);
-addC("🍃 Druide", 25, ["Mystisch", "Scout", "Bestie/Monster"], $hand, $combos);
-addC("🧪 Für die Wissenschaft", 35, ["Magier", "Magische Kreatur", "Edelstein/Gegenstand"], $hand, $combos);
-addC("👪 Königsfamilie", 45, ["König/Königin", "König/Königin", "Prinz/Prinzessin", "Prinz/Prinzessin"], $hand, $combos);
-addC("🔱 Heilige Dreifaltigkeit", 35, ["Höheres Wesen", "Magische Kreatur", "Mystisch"], $hand, $combos);
-
-
-// 5. OPTIMIERUNG
+// --- 4. OPTIMIERUNG & BESTE KOMBO FINDEN ---
 function findBest($combos, $used = []) {
     $best = ["combos" => [], "pts" => 0];
     foreach ($combos as $i => $c) {
@@ -222,41 +155,27 @@ function findBest($combos, $used = []) {
 $opt = findBest($combos);
 $usedIdx = array_merge(...array_column($opt['combos'], 'indices') ?: [[]]);
 
-// --- 5.1. KOMBO-OVERWRITE ---
-if ($isKomboMode && !empty($opt['combos'])) {
-    $bestLabel = $opt['combos'][0]['label'];
-    $mapping = [
-        "Bestienhorde" => "Rudel", 
-        "Königreich" => "Royal", 
-        "Karte" => "Entdecker",
-        "Abenteuer" => "Helden", 
-        "Markt" => "Handel", 
-        "Magierturm" => "Arkan",
-        "Holy Shit" => "Goettlich", 
-        "Waffen" => "Krieg", 
-        "HerDrachen-Hortde" => "Drache",
-        "Prinzessin" => "Royal", 
-        "Karawane" => "Handel", 
-        "Patrouille" => "Wald",
-        "Schrein" => "Mystik", 
-        "Schmiede" => "Schmiede", 
-        "Sphären" => "Kosmisch",
-        "Rudelsführer" => "Rudel", 
-        "Paladine" => "Heilig", 
-        "Druide" => "Natur",
-        "Wissenschaft" => "Alchemie", 
-        "Königsfamilie"=> "Empire", 
-        "Dreifaltigkeit"=> "Heilig"
-    ];
+// JETZT erst wissen wir, welches die beste Combo ist!
+$highestComboTheme = (!empty($opt['combos'])) ? $opt['combos'][0]['class'] : null;
 
-    foreach ($mapping as $key => $themeName) {
-        if (mb_strpos($bestLabel, $key) !== false && isset($themes[$themeName])) {
-            $cfg = $themes[$themeName];
-            break; 
-        }
+// --- 5. THEME AUSWÄHLEN ---
+$rawThemeInput = isset($input['theme']) ? trim((string)$input['theme']) : '';
+$actorName = $input['actorName'] ?? null;
+$presetsFile = 'user_presets.json';
+
+// Falls Input leer, versuche Preset zu laden (bevor die Funktion läuft)
+if ($rawThemeInput === '' && !empty($actorName)) {
+    if (file_exists($presetsFile)) {
+        $userPresets = json_decode(@file_get_contents($presetsFile), true) ?? [];
+        $rawThemeInput = $userPresets[$actorName] ?? '';
     }
 }
 
+// Jetzt die Funktion aufrufen (WICHTIG: actorName als 4. Parameter)
+$themeResult = getFinalThemeConfig($rawThemeInput, $highestComboTheme, $themes, $actorName);
+
+$cfg = $themeResult['cfg'];
+$finalKey = $themeResult['key'];
 
 // --- 6. HTML GENERIERUNG (Vollständige Version) ---
 $base = array_sum(array_column($hand, 'points'));
@@ -315,7 +234,7 @@ $total = $subTotal + $opt['pts'];
 $html = "
 <div style='font-family: \"Signika\", sans-serif; border: 2px solid {$cfg['colorAccent']}; border-radius: 10px; background: {$cfg['colorBg']}; padding: 12px; color: {$cfg['colorTextMain']}; box-shadow: 0 6px 12px {$cfg['shadowColor']};' data-edit-key='shadowColor,colorTextMain,colorBg,colorAccent'>
 <h2 style='border-bottom: 2px solid {$cfg['colorPrimary']}; margin-top: 0; text-align: center; color: {$cfg['colorBoltCore']}; text-transform: uppercase; text-shadow: 0 0 10px {$cfg['colorPrimary']}, 0 0 20px {$cfg['colorPrimary']};'  data-edit-keys='colorPrimary,colorBoltCore,colorPrimary'>
-        {$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
+        Test {$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
     </h2>
     
     <p style='margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg['colorAccent']};'  data-edit-keys='colorAccent'>{$cfg['labelHand']}</p>

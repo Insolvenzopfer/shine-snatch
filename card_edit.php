@@ -1,4 +1,60 @@
 <?php
+session_start();
+
+// HIER DEIN PASSWORT ÄNDERN zeile auskommmentieren, seite aufrufen und in der variable darunter setzen
+//echo password_hash('ShineSnatchIstSuper69!', PASSWORD_DEFAULT);
+
+$admin_password_hash = '$2y$12$peuzsRVkOW/Q6V55HBghK.N.SYmJDb47yHULU9KEC9C0Un1rY3f9S'; 
+
+// Logout-Logik
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: card_edit.php");
+    exit;
+}
+
+// Login-Prüfung
+if (isset($_POST['login_pass'])) {
+    if (password_verify($_POST['login_pass'], $admin_password_hash)) {
+        $_SESSION['loggedin'] = true;
+    } else {
+        $error = "Falsches Passwort!";
+    }
+}
+
+// Wenn nicht eingeloggt, Login-Formular anzeigen und Script stoppen
+if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Card Editor</title>
+    <style>
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #1e1e1e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); text-align: center; border: 1px solid #333; }
+        input { padding: 10px; width: 200px; border-radius: 5px; border: 1px solid #444; background: #252525; color: white; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #bb86fc; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .error { color: #cf6679; margin-bottom: 10px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔒 Card Editor Login</h2>
+        <?php if (isset($error)) echo "<p class='error'>$error</p>"; ?>
+        <form method="POST">
+            <input type="password" name="login_pass" placeholder="Passwort eingeben" autofocus><br>
+            <button type="submit">Einloggen</button>
+        </form>
+    </div>
+</body>
+</html>
+<?php 
+exit; // Stoppt das restliche Script, wenn nicht eingeloggt
+endif; 
+
+// Ab hier folgt dein normaler Code von card_edit.php...
+
+
 $file = 'game_data.json';
 if (!file_exists($file)) {
     file_put_contents($file, json_encode(['cardTypes' => [], 'groups' => [], 'combos' => []]));
@@ -86,6 +142,9 @@ if (isset($_POST['save'])) {
 
     <form method="POST" id="dbForm">
         <div class="section">
+            <div style="text-align: right;">
+    <a href="?logout=1" style="color: #cf6679; text-decoration: none; font-size: 0.8em;">✖ Editor sperren / Logout</a>
+</div>
             <h2>Karten-Typen <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button></h2>
             <table id="cardsTable">
                 <thead><tr><th>ID</th><th>Emoji</th><th>Name</th><th>Anzahl</th><th>Punkte</th><th>StartId</th><th width="40"></th></tr></thead>
