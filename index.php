@@ -154,9 +154,86 @@
             cursor: pointer; font-family: inherit; font-weight: bold;
             display: none; /* Nur im Vorschau-Modus zeigen */
         }
+
+        /* --- MOBILE NAVIGATION --- */
+.mobile-header {
+    display: none; /* Standardmäßig aus */
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(15px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
+    padding: 0 20px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.mobile-brand { display: flex; align-items: center; gap: 10px; }
+.mobile-brand img { width: 35px; }
+.mobile-brand span { font-weight: bold; letter-spacing: 2px; color: var(--primary); }
+
+.burger-menu {
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px; padding: 10px;
+}
+.burger-menu span {
+    display: block; width: 25px; height: 2px;
+    background: var(--text); transition: 0.3s;
+}
+
+/* --- RESPONSIVE DESIGN --- */
+@media (max-width: 900px) {
+    body { flex-direction: column; }
+
+    .mobile-header { display: flex; }
+
+    .sidebar {
+        position: fixed;
+        top: 60px; left: -100%; /* Versteckt links */
+        width: 100%; height: calc(100vh - 60px);
+        transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        background: rgba(5, 7, 5, 0.98);
+        padding: 20px;
+    }
+
+    .sidebar.open { left: 0; }
+
+    .brand { display: none; } /* In Sidebar auf Handy verstecken */
+
+    .main-view {
+        padding-top: 60px;
+        height: 100vh;
+    }
+
+    .content-container { width: 95%; height: 80%; }
+    
+    .content-container.preview-mode {
+        width: 100%;
+        transform: scale(0.9); /* Ein bisschen verkleinern damit es passt */
+    }
+}
+
+/* Burger Animation wenn offen */
+.burger-menu.open span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+.burger-menu.open span:nth-child(2) { opacity: 0; }
+.burger-menu.open span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
     </style>
 </head>
 <body>
+    <!-- Mobile Header -->
+<header class="mobile-header">
+    <div class="mobile-brand" onclick="loadPreview()">
+        <img src="https://www.9ps.eu/dnd/items/Krark/shine-snatch.webp" alt="Logo">
+        <span>SNATCH</span>
+    </div>
+    <button class="burger-menu" id="burgerBtn" onclick="toggleMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+</header>
 
 <div class="sidebar">
     <div class="brand" onclick="loadPreview()">
@@ -175,14 +252,14 @@
         <div class="nav-item" onclick="loadPage('shine-snatch_rules.php', this)">
             <span class="icon">📜</span><span>Regeln</span>
         </div>
+        <div class="nav-item" onclick="loadPage('statistik.php', this)">
+            <span class="icon">📊</span><span>Statistik</span>
+        </div>
         <div class="nav-item" onclick="loadPage('card_edit.php', this)">
             <span class="icon">📝</span><span>Edit-Tool</span>
         </div>
         <div class="nav-item" onclick="loadPage('test.php', this)">
-            <span class="icon">🧪</span><span>Test-Tool</span>
-        </div>
-        <div class="nav-item" onclick="loadPage('debug.php', this)">
-            <span class="icon">🛠️</span><span>Debug</span>
+            <span class="icon">🧪</span><span>Test und Debug Tool</span>
         </div>
     </nav>
 </div>
@@ -280,6 +357,28 @@ function setActive(el) {
 
 // Initial beim Start die Vorschau laden
 document.addEventListener('DOMContentLoaded', () => loadPreview());
+
+const sidebar = document.querySelector('.sidebar');
+const burgerBtn = document.getElementById('burgerBtn');
+
+function toggleMenu() {
+    sidebar.classList.toggle('open');
+    burgerBtn.classList.toggle('open');
+}
+
+// Angepasste loadPage/loadPreview damit das Menü auf dem Handy schließt
+const originalLoadPage = loadPage;
+loadPage = function(url, element) {
+    originalLoadPage(url, element);
+    if(window.innerWidth <= 900) toggleMenu();
+}
+
+const originalLoadPreview = loadPreview;
+loadPreview = function(element) {
+    originalLoadPreview(element);
+    // Nur schließen, wenn es durch einen Klick im Menü ausgelöst wurde
+    if(element && window.innerWidth <= 900) toggleMenu();
+}
 </script>
 
 </body>

@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Europe/Berlin');
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -191,6 +193,16 @@ if (($input['theme'] ?? '') === "PREVIEW_MODE" && isset($input['customConfig']))
 $base = array_sum(array_column($hand, 'points'));
 $subTotal = $base + $specBonusTotal;
 
+$isOverridden = isset($input['overrideHand']) && is_array($input['overrideHand']);
+$overrideWarning = "";
+
+if ($isOverridden) {
+    $overrideWarning = "
+    <div style='background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #f87171; padding: 4px 8px; border-radius: 4px; margin-bottom: 10px; font-size: 0.8em; text-align: center; font-weight: bold;'>
+        ⚠️ MANUELLE HAND (TESTMODUS / DEBUG)
+    </div>";
+}
+
 // Hand-Liste
 $listHtml = "";
 foreach ($hand as $i => $c) {
@@ -246,13 +258,13 @@ $html = "
 <h2 style='border-bottom: 2px solid {$cfg['colorPrimary']}; margin-top: 0; text-align: center; color: {$cfg['colorBoltCore']}; text-transform: uppercase; text-shadow: 0 0 10px {$cfg['colorPrimary']}, 0 0 20px {$cfg['colorPrimary']};'  data-edit-keys='colorPrimary,colorBoltCore,colorPrimary'>
         🃏{$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
     </h2>
-    
+    $overrideWarning
     <p style='margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg['colorAccent']};'  data-edit-keys='colorAccent'>{$cfg['labelHand']}</p>
     <ul style='list-style: none; padding: 8px; margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; background: {$cfg['colorBgCard']};' data-edit-keys='colorBgCard'>
         $listHtml
     </ul>
     
-    <div style='text-align: right; font-size: 0.85em; color: {$cfg['colorTextMuted']}; margin-bottom: 5px;'  data-edit-keys='colorTextMuted'>
+    <div style='text-align: right; font-size: 0.85em; color: {$cfg['colorTextMuted']}; margin-bottom: 5px; font-style: italic;'  data-edit-keys='colorTextMuted'>
         {$cfg['labelHandSum']} <strong style='color: {$cfg['colorBoltCore']};' data-edit-keys='colorBoltCore'>$base Pkt</strong>
     </div>
 
@@ -262,7 +274,7 @@ $html = "
         <span style='float: right; color: {$cfg['colorBoltCore']}; font-weight: bold;'  data-edit-keys='colorBoltCore'>+$specBonusTotal Pkt</span>
         <div style='font-size: 0.9em; color: {$cfg['colorTextMain']}; opacity: 0.8;'  data-edit-keys='colorTextMain' >Gewürfelt: " . implode(", ", $specHits) . "</div>
     </div>
-    <div style='text-align: right; font-size: 0.9em; color: {$cfg['colorTextMain']}; border-top: 1px solid #333; margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;'  data-edit-keys='colorTextMain'>
+    <div style='text-align: right; font-size: 0.9em; color: {$cfg['colorTextMuted']}; border-top: 1px solid #333; margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;'  data-edit-keys='colorTextMain'>
         {$cfg['labelSubTotal']} <strong style='color: {$cfg['colorBoltCore']};' data-edit-keys='colorBoltCore'>$subTotal Pkt</strong>
     </div>" : "") . "
 
@@ -284,6 +296,7 @@ $html = "
     <div style='text-align: center; font-size: 1.4rem; margin-top: 15px; padding: 12px; background: {$cfg['colorBg']}; color: {$cfg['colorBoltCore']}; border: 1px solid {$cfg['colorAccent']}; border-radius: 6px; font-weight: bold;text-shadow: 0 0 10px {$cfg['colorPrimary']}, 0 0 20px {$cfg['colorPrimary']};' data-edit-keys='colorBg,colorBoltCore,colorAccent,colorPrimary'>
         {$cfg['labelTotal']} $total
     </div>
+    $overrideWarning
 </div>";
 
 // NEU: Log-Sperre für den Theme-Editor

@@ -34,7 +34,7 @@
         },
         {
             "id": "MYS",
-            "name": "Mystisch",
+            "name": "Mystiker",
             "count": 5,
             "points": 10,
             "startId": 27,
@@ -103,7 +103,8 @@
             "cards": [
                 "KRG",
                 "MAG",
-                "SCT"
+                "SCT",
+                "MYS"
             ]
         },
         {
@@ -112,13 +113,30 @@
                 "KNG",
                 "PRZ"
             ]
+        },
+        {
+            "id": "ALLE",
+            "cards": [
+                "EDL",
+                "BST",
+                "ORT",
+                "HND",
+                "MYS",
+                "SCT",
+                "KRG",
+                "MAG",
+                "MKR",
+                "PRZ",
+                "KNG",
+                "HWS"
+            ]
         }
     ],
     "combos": [
         {
             "emoji": "🐾🐾🐾",
             "name": "Bestienhorde (5)",
-            "points": 60,
+            "points": 75,
             "needs": [
                 "BST",
                 "BST",
@@ -131,7 +149,7 @@
         {
             "emoji": "🐾🐾",
             "name": "Bestienhorde (4)",
-            "points": 30,
+            "points": 50,
             "needs": [
                 "BST",
                 "BST",
@@ -143,7 +161,7 @@
         {
             "emoji": "🐾",
             "name": "Bestienhorde (3)",
-            "points": 15,
+            "points": 30,
             "needs": [
                 "BST",
                 "BST",
@@ -154,7 +172,7 @@
         {
             "emoji": "🗺️🗺️🗺️",
             "name": "Karte (4)",
-            "points": 60,
+            "points": 75,
             "needs": [
                 "EDL",
                 "ORT",
@@ -167,7 +185,7 @@
         {
             "emoji": "🗺️🗺️",
             "name": "Karte (3)",
-            "points": 30,
+            "points": 50,
             "needs": [
                 "EDL",
                 "ORT",
@@ -179,7 +197,7 @@
         {
             "emoji": "🗺️",
             "name": "Karte (2)",
-            "points": 15,
+            "points": 30,
             "needs": [
                 "EDL",
                 "ORT",
@@ -211,9 +229,21 @@
             "cat": "Royal"
         },
         {
-            "emoji": "🛡️",
+            "emoji": "⚔️🏹",
             "name": "Abenteuergruppe",
-            "points": 50,
+            "points": 40,
+            "needs": [
+                "ABENTEURER",
+                "ABENTEURER",
+                "ABENTEURER",
+                "ABENTEURER"
+            ],
+            "cat": "Helden"
+        },
+        {
+            "emoji": "🛡️",
+            "name": "Heldengruppe",
+            "points": 60,
             "needs": [
                 "MAG",
                 "KRG",
@@ -222,10 +252,11 @@
             ],
             "cat": "Helden"
         },
+
         {
             "emoji": "⚖️",
             "name": "Markt",
-            "points": 20,
+            "points": 30,
             "needs": [
                 "HND",
                 "ORT",
@@ -277,6 +308,19 @@
             "cat": "Drache"
         },
         {
+            "emoji": "🐲",
+            "name": "Drachenjäger",
+            "points": 75,
+            "needs": [
+                "MKR",
+                "PRZ",
+                "ORT",
+                "KRG",
+                "KNG"
+            ],
+            "cat": "Helden"
+        },
+        {
             "emoji": "🦄",
             "name": "Entführte Prinzessin",
             "points": 50,
@@ -302,7 +346,7 @@
         {
             "emoji": "📦",
             "name": "Kleine Karawane",
-            "points": 20,
+            "points": 30,
             "needs": [
                 "HND",
                 "HND",
@@ -376,7 +420,7 @@
         {
             "emoji": "🍃",
             "name": "Druide",
-            "points": 25,
+            "points": 30,
             "needs": [
                 "MYS",
                 "SCT",
@@ -417,6 +461,18 @@
                 "MYS"
             ],
             "cat": "Heilig"
+        },
+        {
+            "emoji": "🎪",
+            "name": "Der Zirkus",
+            "points": 40,
+            "needs": [
+                "ORT",
+                "BST",
+                "MKR",
+                "HND"
+            ],
+            "cat": "Piefke"
         }
     ]
 }

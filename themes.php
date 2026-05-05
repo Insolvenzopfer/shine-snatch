@@ -4,7 +4,8 @@ $jsonFile = 'themes.json';
 
 // Prüfen ob Admin (Session ID gesetzt)
 // Ersetze 'admin_logged_in' durch deine tatsächliche Session-Variable
-$is_logged_in = isset($_SESSION['user_id']);
+
+$is_logged_in = isset($_SESSION['loggedin']);
 
 
 // Falls die Datei nicht existiert oder leer ist, erstelle sie mit Start-Inhalt
