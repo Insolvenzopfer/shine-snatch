@@ -1,10 +1,9 @@
 //
-// V 1.2
-//
 // if PlayerChar == "Krark" { set AlwaysWIN = "true" };
 
 // --- USER KONFIGURATION ---
 // Themes auswahl unter https://www.9ps.eu/shine-snatch/themes.php
+const currentScriptVersion = "1.3"; // Deine aktuelle Version
 const activeTheme = "Gold"; 
 
 // URL zum aufruf der Karten
@@ -41,7 +40,14 @@ console.log("Shine-Snatch DEBUG | Übergebene IDs an API:", myOwnedCards);
 // --- API LOGIK ---
 (async () => {
     // LOG: Das komplette Objekt, das an den Server geht
-    const payload = { theme: activeTheme, ownedCards: myOwnedCards, playerName: playerName, actorName: actor.name, world: worldName, version: foundryVersion , url: serverUrl };
+    const payload = { theme: activeTheme, 
+			ownedCards: myOwnedCards, 
+			playerName: playerName, 
+			actorName: actor.name, 
+			world: worldName, 
+			version: foundryVersion , 
+			url: serverUrl,
+            scriptVersion: currentScriptVersion };
     console.log("Shine-Snatch DEBUG | JSON Payload:", JSON.stringify(payload));
 
     try {
@@ -52,6 +58,10 @@ console.log("Shine-Snatch DEBUG | Übergebene IDs an API:", myOwnedCards);
         });
 
         const result = await response.json();
+			if (result.updateAvailable) {
+            ui.notifications.info(`✨ Shine-Snatch Update verfügbar! (v${result.newVersion}). Bitte update das Skript.`);
+        }
+
         console.log("Shine-Snatch DEBUG | Server Antwort:", result);
 
         if (result.html) {

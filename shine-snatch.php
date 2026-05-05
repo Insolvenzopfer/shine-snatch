@@ -6,14 +6,34 @@ header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json; charset=utf-8');
 
+$config = require 'config.php';
+$currentVersion = $config['current_version'];
+
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') exit;
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) exit(json_encode(["error" => "No input"]));
 
+$clientVersion = $input['scriptVersion'] ?? "1.0";
 $gamedatafile = 'game_data.json';
 $game_data = json_decode(file_get_contents($gamedatafile), true);
 $themes = json_decode(file_get_contents('themes.json'), true);
+
+$response = [];
+$updateWarningHtml = "";
+
+// Prüfen, ob Version veraltet ist
+if (version_compare($clientVersion, $currentVersion, '<')) {
+    $response['updateAvailable'] = true;
+    $response['newVersion'] = $currentVersion;
+
+    // HTML-Hinweis für die Spielkarte vorbereiten
+    $updateWarningHtml = "
+    <div style='background: linear-gradient(45deg, #f5780b, #d97706); color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px; font-size: 0.8em; text-align: center; font-weight: bold; border: 1px solid #78350f; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'>
+        ⚠️ UPDATE VERFÜGBAR: v$currentVersion<br>
+        <span style='font-weight: normal; font-size: 0.9em;'>Dein Makro ist veraltet (v$clientVersion)</span>
+    </div>";
+}
 
 /**
  * Kernfunktion für die Theme-Verwaltung
@@ -259,6 +279,7 @@ $html = "
         🃏{$cfg['headerIcon']} <span style='font-weight: bold;'>{$cfg['headerTitle']}</span>
     </h2>
     $overrideWarning
+    $updateWarningHtml
     <p style='margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg['colorAccent']};'  data-edit-keys='colorAccent'>{$cfg['labelHand']}</p>
     <ul style='list-style: none; padding: 8px; margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; background: {$cfg['colorBgCard']};' data-edit-keys='colorBgCard'>
         $listHtml
@@ -355,5 +376,6 @@ if (!in_array($world, $excludedWorlds)) {
 }
 // --- ENDE LOG FUNKTION ---
 
-echo json_encode(["html" => $html]);
-
+// Füge das HTML zum bestehenden Response-Array hinzu
+$response['html'] = $html;
+echo json_encode($response);

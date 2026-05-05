@@ -1,3 +1,8 @@
+<?php
+$config = require 'config.php';
+$currentVersion = $config['current_version'];
+
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -295,7 +300,8 @@ async function loadPreview(element) {
         actorName: "Dashboard-Admin",
         theme: "zufall",
         world: "Dashboard-EyeCatcher",
-        ownedCards: []
+        ownedCards: [],
+        scriptVersion: <?php echo $currentVersion; ?>,
     };
 
     try {

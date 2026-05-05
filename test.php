@@ -1,3 +1,8 @@
+<?php
+$config = require 'config.php';
+$currentVersion = $config['current_version'];
+
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -68,6 +73,12 @@
             <label>Welt</label>
             <input type="text" id="world" value="Test-Umgebung">
 
+            <label>Skript Version (Test-Eingabe)</label>
+<div class="input-group">
+    <input type="text" id="scriptVersion" value="<?php echo $currentVersion; ?>">
+    <button type="button" class="btn-small" onclick="document.getElementById('scriptVersion').value='1.1'" title="Alte Version testen">v1.1</button>
+</div>
+
             <button type="button" id="sendBtn" onclick="sendRequest()">Senden & Analysieren</button>
         </form>
     </div>
@@ -128,6 +139,7 @@ async function sendRequest() {
         theme: document.getElementById('theme').value,
         world: document.getElementById('world').value,
         version: "1.0.0-debug",
+        scriptVersion: document.getElementById('scriptVersion').value, 
         ownedCards: document.getElementById('ownedCards').value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n))
     };
 

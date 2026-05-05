@@ -7,6 +7,8 @@ $jsonFile = 'themes.json';
 
 $is_logged_in = isset($_SESSION['loggedin']);
 
+$config = require 'config.php';
+$currentVersion = $config['current_version'];
 
 // Falls die Datei nicht existiert oder leer ist, erstelle sie mit Start-Inhalt
 if (!file_exists($jsonFile) || filesize($jsonFile) == 0) {
@@ -478,7 +480,8 @@ async function updatePreview() {
                 ownedCards: ownedIds,
                 world: "Theme-Editor", 
                 version: "" , 
-                url: serverUrl
+                url: serverUrl,
+                scriptVersion: <?php echo $currentVersion; ?>,
             })
         });
 
