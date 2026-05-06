@@ -2,9 +2,10 @@
 /**
  * Shine-Snatch Statistik Generator
  */
+$config = require 'config.php';
 
 // --- EINSTELLUNGEN ---
-$logFile     = 'snatchlog.txt';
+$logFile     = $config['log_file'];
 $maskLength  = 5; 
 $limitDays   = 4; // <--- NEU: Nur die letzten X Tage berücksichtigen
 $targetContext = $_GET['context'] ?? ''; 

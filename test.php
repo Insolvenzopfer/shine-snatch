@@ -53,7 +53,7 @@ $currentVersion = $config['current_version'];
         <h2>🚀 API Tester</h2>
         <form id="apiForm">
             <label>API URL</label>
-            <input type="text" id="apiUrl" value="https://<?php echo $_SERVER['HTTP_HOST']; ?>/shine-snatch/shine-snatch.php">
+            <input type="text" id="apiUrl" value="<?php echo $config['api_url'] ?>">
 
             <label>Spieler (actorName)</label>
             <input type="text" id="actorName" value="TestUser">

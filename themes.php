@@ -470,7 +470,7 @@ async function updatePreview() {
 
     try {
         const serverUrl = window.location.origin;
-        const response = await fetch('https://<?php echo $_SERVER['HTTP_HOST']; ?>/shine-snatch/shine-snatch.php', {
+        const response = await fetch('<?php echo $config['api_url'] ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

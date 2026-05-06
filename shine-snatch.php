@@ -98,7 +98,7 @@ function getFinalThemeConfig($themeInput, $bestComboTheme, $themes, $actorName =
     }
 
     // 5. Fallback: Gold
-    $defaultKey = $themeMapLower['gold'] ?? $allKeys[0];
+    $defaultKey = $themeMapLower[$config['default_theme']] ?? $allKeys[0];
     return ["cfg" => $themes[$defaultKey], "key" => $defaultKey, "mode" => "default"];
 }
 
@@ -372,7 +372,7 @@ if (!in_array($world, $excludedWorlds)) {
     );
 
     // 4. In Datei schreiben (FILE_APPEND erstellt die Datei, falls nicht vorhanden)
-    file_put_contents('snatchlog.txt', $logLine, FILE_APPEND);
+    file_put_contents($config['log_file'], $logLine, FILE_APPEND);
 }
 // --- ENDE LOG FUNKTION ---
 
