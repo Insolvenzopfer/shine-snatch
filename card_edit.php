@@ -6,6 +6,9 @@ session_start();
 
 $admin_password_hash = '$2y$12$peuzsRVkOW/Q6V55HBghK.N.SYmJDb47yHULU9KEC9C0Un1rY3f9S'; 
 
+$themesFile = 'themes.json';
+$themesData = json_decode(file_get_contents($themesFile), true);
+
 if (isset($_GET['logout'])) {
     session_destroy();
     header("Location: card_edit.php");
@@ -163,6 +166,13 @@ if (isset($_POST['save'])) {
     border-width: 1px;
     /* Die Hintergrundfarbe und Rahmenfarbe setzen wir per JavaScript/PHP direkt im Style-Attribut */
 }
+
+/* Markierung für den aktuell ausgewählten Wert im Modal */
+.modal-item.active {
+    border: 2px solid var(--primary);
+    background: rgba(44, 178, 76, 0.2);
+    box-shadow: 0 0 10px rgba(44, 178, 76, 0.3);
+}
     </style>
 </head>
 <body>
@@ -262,7 +272,26 @@ if (isset($_POST['save'])) {
                                 <?php endif; ?>
                             </div>
                         </td>
-                        <td><input type="text" name="combos[<?=$idx?>][cat]" value="<?=$cb['cat']?>"></td>
+                        <td>
+    <select name="combos[<?=$idx?>][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+        <option value="">-- Kein Theme --</option>
+        <?php 
+        if (!empty($themesData)) {
+            foreach ($themesData as $themeKey => $themeValues) { 
+                // Wir nutzen den Key (z.B. "Gold") als ID
+                // Und schauen nach einem Emoji (falls vorhanden, sonst Standard)
+                $name = $themeKey;
+                $emoji = $themeValues['specialCardEmoji'] ?? '✨';
+                ?>
+                <option value="<?= htmlspecialchars($themeKey) ?>" <?= (isset($cb['cat']) && $cb['cat'] == $themeKey) ? 'selected' : '' ?>>
+                    <?= $emoji ?> <?= $name ?>
+                </option>
+                <?php 
+            }
+        }
+        ?>
+    </select>
+</td>
                         <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
                     </tr>
                     <?php endforeach; ?>
@@ -293,6 +322,7 @@ const allGroupOptions = <?= json_encode(array_column($data['groups'], 'id')) ?>;
 function addRow(tableId) {
     const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];
     const idx = Date.now();
+    const allThemes = <?= json_encode($themesData) ?>;
     let row = document.createElement('tr');
 
     if (tableId === 'cardsTable') {
@@ -308,26 +338,40 @@ function addRow(tableId) {
         row.innerHTML = `
             <td><input type="text" name="groups[${idx}][id]" style="color:var(--accent)"></td>
             <td><div class="selection-container" data-type="group" data-row="${idx}" data-max="12">
-                <button type="button" class="select-btn filled" <?=getDynamicStyle($val)?> onclick="openPicker(this)">
+                <button type="button" class="select-btn" onclick="openPicker(this)">
                     <span class="label">+ Wählen</span>
                     <input type="hidden" name="groups[${idx}][cards][]" value="">
                 </button>
             </div></td>
             <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
     } else if (tableId === 'combosTable') {
-        row.innerHTML = `
-            <td><input type="text" name="combos[${idx}][emoji]" style="width:50px; text-align:center;"></td>
-            <td><input type="text" name="combos[${idx}][name]"></td>
-            <td><input type="number" name="combos[${idx}][points]" value="0" style="width:60px;"></td>
-            <td><div class="selection-container" data-type="combo" data-row="${idx}" data-max="5">
-                <button type="button" class="select-btn filled" <?=getDynamicStyle($val)?> onclick="openPicker(this)">
-                    <span class="label">+ Wählen</span>
-                    <input type="hidden" name="combos[${idx}][needs][]" value="">
-                </button>
-            </div></td>
-            <td><input type="text" name="combos[${idx}][cat]"></td>
-            <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
+    let themeOptions = '<option value="">-- Kein Theme --</option>';
+    
+    // Da themesData ein Objekt ist, nutzen wir Object.entries
+    if (allThemes) {
+        Object.entries(allThemes).forEach(([key, value]) => {
+            let emoji = value.specialCardEmoji || '✨';
+            themeOptions += `<option value="${key}">${emoji} ${key}</option>`;
+        });
     }
+
+    row.innerHTML = `
+        <td><input type="text" name="combos[${idx}][emoji]" style="width:50px; text-align:center;"></td>
+        <td><input type="text" name="combos[${idx}][name]"></td>
+        <td><input type="number" name="combos[${idx}][points]" value="0" style="width:60px;"></td>
+        <td><div class="selection-container" data-type="combo" data-row="${idx}" data-max="5">
+            <button type="button" class="select-btn" onclick="openPicker(this)">
+                <span class="label">+ Wählen</span>
+                <input type="hidden" name="combos[${idx}][needs][]" value="">
+            </button>
+        </div></td>
+        <td>
+            <select name="combos[${idx}][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                ${themeOptions}
+            </select>
+        </td>
+        <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
+}
     table.appendChild(row);
 }
 
@@ -340,25 +384,45 @@ function openPicker(btn) {
     const modal = document.getElementById('selectionModal');
     const grid = document.getElementById('modalGrid');
     const type = btn.closest('.selection-container').dataset.type;
+    const currentValue = btn.querySelector('input').value;
     
-    grid.innerHTML = '<div class="modal-item empty" onclick="selectOption(\'\')">❌ LEEREN / LÖSCHEN</div>';
+    grid.innerHTML = '';
+
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'modal-item empty' + (currentValue === '' ? ' active' : '');
+    emptyDiv.onclick = () => selectOption('');
+    emptyDiv.innerHTML = '❌ LEEREN / LÖSCHEN';
+    grid.appendChild(emptyDiv);
     
     allCardOptions.forEach(c => {
-        grid.innerHTML += `<div class="modal-item" onclick="selectOption('${c.id}', '${c.emoji}')">
-            ${c.emoji} ${c.id} <br><small>${c.name}</small>
-        </div>`;
+        const item = document.createElement('div');
+        item.className = 'modal-item' + (currentValue === c.id ? ' active' : '');
+        item.onclick = () => selectOption(c.id, c.emoji);
+        item.innerHTML = `${c.emoji} ${c.id} <br><small>${c.name}</small>`;
+        grid.appendChild(item);
     });
 
     if(type === 'combo') {
         allGroupOptions.forEach(g => {
-            grid.innerHTML += `<div class="modal-item" style="border-color:var(--accent)" onclick="selectOption('${g}', '📁')">📁 GRUPPE: ${g}</div>`;
+            const item = document.createElement('div');
+            item.style.borderColor = 'var(--accent)';
+            item.className = 'modal-item' + (currentValue === g ? ' active' : '');
+            item.onclick = () => selectOption(g, '📁');
+            item.innerHTML = `📁 GRUPPE: ${g}`;
+            grid.appendChild(item);
         });
     }
 
     modal.style.display = 'block';
-    document.getElementById('modalSearch').value = '';
-    filterModal();
-    document.getElementById('modalSearch').focus();
+    const searchInput = document.getElementById('modalSearch');
+    searchInput.value = '';
+    filterModal(); 
+    searchInput.focus();
+
+    setTimeout(() => {
+        const activeItem = grid.querySelector('.modal-item.active');
+        if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 10);
 }
 
 function closePicker() {
@@ -376,10 +440,7 @@ function selectOption(val, emoji = '') {
     const btn = currentTargetBtn;
     const container = btn.closest('.selection-container');
     const max = parseInt(container.dataset.max);
-    
-    // Hidden Input aktualisieren
     btn.querySelector('input').value = val;
-
     refreshSelectionFields(container, max);
     closePicker();
 }
@@ -406,17 +467,12 @@ function refreshSelectionFields(container, max) {
 
 function getDynamicColorStyle(id) {
     if (!id || id === "") return "";
-    
-    // Immer die ersten 3 Zeichen nehmen
     const prefix = String(id).substring(0, 3);
-    
     let h = 0;
     for (let i = 0; i < prefix.length; i++) {
-        // Dieselbe Bitwise-Operation wie im PHP oben
         h = ((h << 5) - h) + prefix.charCodeAt(i);
-        h |= 0; // Zu 32-bit Integer konvertieren
+        h |= 0;
     }
-    
     const hue = Math.abs(h % 360);
     return `border-color: hsl(${hue}, 70%, 50%); background: hsl(${hue}, 70%, 15%);`;
 }
@@ -425,14 +481,8 @@ function addSelectionButton(container, type, rowIdx, fieldName, value, emoji) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'select-btn ' + (value ? 'filled' : '');
-    
-    // Hier passiert die Magie:
-    if (value) {
-        btn.setAttribute('style', getDynamicColorStyle(value));
-    }
-    
+    if (value) btn.setAttribute('style', getDynamicColorStyle(value));
     btn.onclick = function() { openPicker(this); };
-    
     const displayLabel = value ? `${emoji} ${value}` : '+ Wählen';
     btn.innerHTML = `<span class="label">${displayLabel}</span>
                      <input type="hidden" name="${type}s[${rowIdx}][${fieldName}][]" value="${value}">`;

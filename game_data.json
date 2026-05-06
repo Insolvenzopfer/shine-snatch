@@ -472,19 +472,6 @@
                 "HND"
             ],
             "cat": "Piefke"
-        },
-        {
-            "emoji": "🎪",
-            "name": "test",
-            "points": 0,
-            "needs": [
-                "KRG",
-                "MAG",
-                "MKR",
-                "HWS",
-                "HWS"
-            ],
-            "cat": ""
         }
     ]
 }
