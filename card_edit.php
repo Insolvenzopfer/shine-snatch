@@ -281,7 +281,7 @@ if (isset($_POST['save'])) {
                 // Wir nutzen den Key (z.B. "Gold") als ID
                 // Und schauen nach einem Emoji (falls vorhanden, sonst Standard)
                 $name = $themeKey;
-                $emoji = $themeValues['specialCardEmoji'] ?? '✨';
+                $emoji = $themeValues['headerIcon'] ?? '✨';
                 ?>
                 <option value="<?= htmlspecialchars($themeKey) ?>" <?= (isset($cb['cat']) && $cb['cat'] == $themeKey) ? 'selected' : '' ?>>
                     <?= $name ?> <?= $emoji ?> <!-- Name nach vorne gestellt -->
@@ -350,7 +350,7 @@ function addRow(tableId) {
     // Da themesData ein Objekt ist, nutzen wir Object.entries
 if (allThemes) {
     Object.entries(allThemes).forEach(([key, value]) => {
-        let emoji = value.specialCardEmoji || '✨';
+        let emoji = value.headerIcon || '✨';
         // Hier auch: Name vor das Emoji stellen
         themeOptions += `<option value="${key}">${key} ${emoji}</option>`;
     });
