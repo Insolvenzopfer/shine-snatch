@@ -1598,5 +1598,30 @@
         "labelUnused": "Verlorene Kn\u00f6pfe:",
         "iconUnused": "\ud83e\uddf5",
         "labelTotal": "LOVE-SCORE:"
+    },
+    "Marktplatz": {
+        "colorPrimary": "#facc15",
+        "colorGlowMain": "rgba(251, 191, 36, 0.4)",
+        "colorBoltCore": "#fbbf24",
+        "colorAccent": "#92400e",
+        "colorBg": "#0f1115",
+        "colorBgCard": "rgba(45, 35, 20, 0.4)",
+        "shadowColor": "rgba(0, 0, 0, 0.8)",
+        "colorTextMain": "#e2e8f0",
+        "colorSpecialBg": "rgba(250, 204, 21, 0.1)",
+        "colorTextMuted": "#64748b",
+        "colorTextComboIds": "#94a3b8",
+        "headerIcon": "\u2696\ufe0f",
+        "headerTitle": "MARKTPLATZ-Snatch",
+        "specialCardEmoji": "\ud83d\udcb0",
+        "labelHand": "Aktuelle Waren",
+        "labelHandSum": "Warenwert:",
+        "labelSpecialBonus": "Handelsgeschick (Bonus):",
+        "labelSubTotal": "Zwischensumme:",
+        "labelCombos": "Aktive Synergien & Vertr\u00e4ge",
+        "iconCombo": "\ud83e\udd1d",
+        "labelUnused": "Verpasste Gelegenheiten",
+        "iconUnused": "\ud83d\udcc9",
+        "labelTotal": "Gesamtprofit:"
     }
 }
