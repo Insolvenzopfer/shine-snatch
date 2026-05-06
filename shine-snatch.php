@@ -39,6 +39,7 @@ if (version_compare($clientVersion, $currentVersion, '<')) {
  * Kernfunktion für die Theme-Verwaltung
  */
 function getFinalThemeConfig($themeInput, $bestComboTheme, $themes, $actorName = null) {
+    global $config;
     $presetsFile = 'user_presets.json';
     $themeInput = trim((string)$themeInput);
     $themeMapLower = [];

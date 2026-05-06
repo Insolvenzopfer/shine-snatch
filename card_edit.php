@@ -43,6 +43,7 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
 <head>
     <meta charset="UTF-8">
     <title>Login - Card Editor</title>
+    
     <style>
         body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-box { background: #1e1e1e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); text-align: center; border: 1px solid #333; }
@@ -106,6 +107,7 @@ if (isset($_POST['save'])) {
     <meta charset="UTF-8">
     <title>Snatch Database Editor Pro</title>
     <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.min.js"></script>
     <style>
         :root {
             --bg: #050705; --panel: rgba(20, 25, 20, 0.7); --primary: #2cb24c;
@@ -172,6 +174,14 @@ if (isset($_POST['save'])) {
     border: 2px solid var(--primary);
     background: rgba(44, 178, 76, 0.2);
     box-shadow: 0 0 10px rgba(44, 178, 76, 0.3);
+}
+
+.sortable-ghost {
+    opacity: 0.4;
+    background: var(--accent) !important;
+}
+.drag-handle:hover {
+    color: var(--primary) !important;
 }
     </style>
 </head>
@@ -244,10 +254,12 @@ if (isset($_POST['save'])) {
         <div class="section">
             <h2>Kombinationen <button type="button" class="btn-add" onclick="addRow('combosTable')">+ Neu</button></h2>
             <table id="combosTable">
-                <thead><tr><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Max 5)</th><th>Kategorie</th><th width="40"></th></tr></thead>
+                <thead><tr><th width="30">↕</th><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Max 5)</th><th>Kategorie</th><th width="40"></th></tr></thead>
                 <tbody>
                     <?php foreach ($data['combos'] as $idx => $cb): ?>
-                    <tr>
+
+                    <tr class="sortable-row">
+                        <td class="drag-handle" style="cursor: grab; color: var(--accent); text-align: center;">☰</td>
                         <td><input type="text" name="combos[<?=$idx?>][emoji]" value="<?=$cb['emoji']?>" style="width:50px; text-align:center;"></td>
                         <td><input type="text" name="combos[<?=$idx?>][name]" value="<?=$cb['name']?>"></td>
                         <td><input type="number" name="combos[<?=$idx?>][points]" value="<?=$cb['points']?>" style="width:60px;"></td>
@@ -318,6 +330,37 @@ if (isset($_POST['save'])) {
 let currentTargetBtn = null;
 const allCardOptions = <?= json_encode($data['cardTypes']) ?>;
 const allGroupOptions = <?= json_encode(array_column($data['groups'], 'id')) ?>;
+
+// Sortier-Funktion initialisieren
+function initSortable() {
+    const el = document.querySelector('#combosTable tbody');
+    Sortable.create(el, {
+        handle: '.drag-handle', // Nur am ☰ Icon ziehbar
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        onEnd: function() {
+            console.log("Reihenfolge geändert");
+            // Optional: Hier könnte man einen "Ungespeicherte Änderungen" Hinweis einblenden
+        }
+    });
+}
+
+// Auch für Gruppen-Tabelle (optional)
+function initSortableGroups() {
+    const el = document.querySelector('#groupsTable tbody');
+    Sortable.create(el, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost'
+    });
+}
+
+// Initialisierung beim Laden
+document.addEventListener('DOMContentLoaded', () => {
+    initSortable();
+    // Falls du auch Gruppen sortieren willst, füge dort auch den Handle ein und aktiviere dies:
+    // initSortableGroups(); 
+});
 
 function addRow(tableId) {
     const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];

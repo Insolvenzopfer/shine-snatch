@@ -1172,7 +1172,7 @@
         "iconCombo": "\ud83d\udc07",
         "labelUnused": "Verpasste Hoppler:",
         "iconUnused": "\ud83d\udd73\ufe0f",
-        "labelTotal": "M\u00dcMMEL-WERT:"
+        "labelTotal": "HOPPEL-POWER:"
     },
     "Zombie": {
         "colorPrimary": "#4d7c0f",

@@ -260,12 +260,15 @@ $currentVersion = $config['current_version'];
         <div class="nav-item" onclick="loadPage('statistik.php', this)">
             <span class="icon">📊</span><span>Statistik</span>
         </div>
+        <div class="nav-item" onclick="loadPage('checkcards.php', this)">
+            <span class="icon">🔍</span><span>Analyse Tool</span>
+        </div>
         <div class="nav-item" onclick="loadPage('card_edit.php', this)">
             <span class="icon">📝</span><span>Edit-Tool</span>
         </div>
         <div class="nav-item" onclick="loadPage('test.php', this)">
             <span class="icon">🧪</span><span>Test und Debug Tool</span>
-        </div>
+        </div>Analyse
     </nav>
 </div>
 

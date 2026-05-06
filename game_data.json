@@ -385,16 +385,6 @@
             "cat": "Schmiede"
         },
         {
-            "emoji": "🌌",
-            "name": "Domänenentfaltung",
-            "points": 40,
-            "needs": [
-                "HWS",
-                "HWS"
-            ],
-            "cat": "Kosmisch"
-        },
-        {
             "emoji": "🐺",
             "name": "Rudelsführer",
             "points": 35,
@@ -472,6 +462,16 @@
                 "HND"
             ],
             "cat": "Piefke"
+        },
+        {
+            "emoji": "🌌",
+            "name": "Domänenentfaltung",
+            "points": 40,
+            "needs": [
+                "HWS",
+                "HWS"
+            ],
+            "cat": "Kosmisch"
         }
     ]
 }
