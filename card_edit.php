@@ -187,7 +187,7 @@ if (isset($_POST['save'])) {
 
     <form method="POST" id="dbForm">
         <div class="section">
-            <h2>Karten-Typen <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button></h2>
+            <h2>Karten-Typen <!-- <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button> --></h2>
             <table id="cardsTable">
                 <thead><tr><th>ID</th><th>Emoji</th><th>Name</th><th>Anz.</th><th>Pkt.</th><th>StartId</th><th width="40"></th></tr></thead>
                 <tbody>
@@ -284,7 +284,7 @@ if (isset($_POST['save'])) {
                 $emoji = $themeValues['specialCardEmoji'] ?? '✨';
                 ?>
                 <option value="<?= htmlspecialchars($themeKey) ?>" <?= (isset($cb['cat']) && $cb['cat'] == $themeKey) ? 'selected' : '' ?>>
-                    <?= $emoji ?> <?= $name ?>
+                    <?= $name ?> <?= $emoji ?> <!-- Name nach vorne gestellt -->
                 </option>
                 <?php 
             }
@@ -348,12 +348,13 @@ function addRow(tableId) {
     let themeOptions = '<option value="">-- Kein Theme --</option>';
     
     // Da themesData ein Objekt ist, nutzen wir Object.entries
-    if (allThemes) {
-        Object.entries(allThemes).forEach(([key, value]) => {
-            let emoji = value.specialCardEmoji || '✨';
-            themeOptions += `<option value="${key}">${emoji} ${key}</option>`;
-        });
-    }
+if (allThemes) {
+    Object.entries(allThemes).forEach(([key, value]) => {
+        let emoji = value.specialCardEmoji || '✨';
+        // Hier auch: Name vor das Emoji stellen
+        themeOptions += `<option value="${key}">${key} ${emoji}</option>`;
+    });
+}
 
     row.innerHTML = `
         <td><input type="text" name="combos[${idx}][emoji]" style="width:50px; text-align:center;"></td>
