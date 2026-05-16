@@ -24,7 +24,7 @@ function maskName($name, $visibleChars) {
 
 $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-// 1. SCHRITT: Contexts finden & Zeitfilter vorbereiten
+// 1. SCHRITT: Contexts finden & Säubern
 $availableContexts = [];
 $cutoffDate = date('Y-m-d', strtotime("today - " . ($limitDays - 1) . " days"));
 
@@ -32,12 +32,18 @@ foreach ($lines as $line) {
     $parts = explode('|', $line);
     if (count($parts) >= 3) {
         $ctx = trim($parts[2]);
-        if (!empty($ctx)) $availableContexts[$ctx] = true;
+        // Hier schneiden wir alles ab der ersten Klammer [ weg
+        $cleanCtx = trim(explode('[', $ctx)[0]); 
+        
+        if (!empty($cleanCtx)) {
+            $availableContexts[$cleanCtx] = true; 
+        }
     }
 }
 $availableContexts = array_keys($availableContexts);
 sort($availableContexts);
 
+// Standard-Context setzen, falls keiner gewählt
 if (empty($targetContext)) $targetContext = $availableContexts[0] ?? '';
 
 // 2. SCHRITT: Daten verarbeiten
@@ -53,8 +59,11 @@ foreach ($lines as $line) {
     if (count($parts) < 7) continue;
 
     // Context Filter
-    $context = trim($parts[2]);
-    if ($context !== $targetContext) continue;
+    $rowContext = trim($parts[2]);
+    $cleanRowContext = trim(explode('[', $rowContext)[0]);
+
+    // Jetzt vergleichen wir die gekürzten Namen
+    if ($cleanRowContext !== $targetContext) continue;
 
     $dateFull = trim($parts[0]);
     $day      = substr($dateFull, 0, 10);
@@ -149,11 +158,11 @@ $topCards = array_slice($stats['cardCount'], 0, 10, true);
         <h1>📊 Snatch-Statistik</h1>
         <form method="GET" id="contextForm">
             <select name="context" class="context-select" onchange="this.form.submit()">
-                <?php foreach ($availableContexts as $ctx): ?>
-                    <option value="<?php echo htmlspecialchars($ctx); ?>" <?php echo ($ctx === $targetContext) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($ctx); ?>
-                    </option>
-                <?php endforeach; ?>
+            <?php foreach ($availableContexts as $ctx): ?>
+            <option value="<?php echo htmlspecialchars($ctx); ?>" <?php echo ($ctx === $targetContext) ? 'selected' : ''; ?>>
+                <?php echo htmlspecialchars($ctx); ?>
+            </option>
+        <?php endforeach; ?>
             </select>
         </form>
         <p><small>Anzeige der letzten <strong><?php echo $limitDays; ?> Tage</strong></small></p>

@@ -11,7 +11,7 @@ $currentVersion = $config['current_version'];
     <link rel="icon" type="image/webp" href="/dnd/items/Krark/shine-snatch.webp">
     <title>Shine Snatch Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;600&display=swap" rel="stylesheet">
-        <?php if($_SERVER['HTTP_HOST']=="www.9ps.eu") { ?>
+    <?php if($_SERVER['HTTP_HOST']=="www.9ps.eu") { ?>
         <link rel="stylesheet" href="/css/style_dragon.css">
         <script src="/js/script_dragon.js" defer></script>
     <?php } ?>
@@ -268,7 +268,7 @@ $currentVersion = $config['current_version'];
         </div>
         <div class="nav-item" onclick="loadPage('test.php', this)">
             <span class="icon">🧪</span><span>Test und Debug Tool</span>
-        </div>Analyse
+        </div>
     </nav>
 </div>
 

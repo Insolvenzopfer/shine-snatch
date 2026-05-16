@@ -24,14 +24,14 @@ if (!file_exists($jsonFile) || filesize($jsonFile) == 0) {
 $themes = json_decode(file_get_contents($jsonFile), true) ?: [];
 
 $colorFields = [
-    'colorPrimary', 'colorGlowMain', 'colorBoltCore', 'colorAccent', 
+    'colorPrimary', 'colorGlowMain', 'colorBoltCore', 'colorAccent',
     'colorBg', 'colorBgCard', 'shadowColor', 'colorTextMain', 'colorSpecialBg',
     'colorTextMuted', 'colorTextComboIds'
 ];
 
 $textFields = [
-    'headerIcon', 'headerTitle', 'specialCardEmoji', 'labelHand', 
-    'labelHandSum', 'labelSpecialBonus', 'labelSubTotal', 'labelCombos', 
+    'headerIcon', 'headerTitle', 'specialCardEmoji', 'labelHand',
+    'labelHandSum', 'labelSpecialBonus', 'labelSubTotal', 'labelCombos',
     'iconCombo', 'labelUnused', 'iconUnused', 'labelTotal'
 ];
 
@@ -63,24 +63,24 @@ $currentConfig = $themes[$currentThemeName] ?? [];
     .pcr-button { border: 1px solid #444 !important; border-radius: 4px !important; }
     body { background: #121212; color: #eee; font-family: 'Segoe UI', sans-serif; }
     .main-container { padding: 40px 20px; }
-    .preview-pane { 
-        width: 400px; 
-        margin: 0 auto; 
-        border: 1px dashed #444; 
+    .preview-pane {
+        width: 400px;
+        margin: 0 auto;
+        border: 1px dashed #444;
         padding: 10px;
-        background: #000; 
+        background: #000;
         min-height: 500px;
         border-radius: 8px;
     }
     input.form-control, select.form-select { background: #222; color: #fff; border: 1px solid #444; }
-    .theme-card { 
+    .theme-card {
         background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
     }
     .theme-card:hover { border-color: #daa520; background: #252525; }
-    .theme-card.active { 
-        border-color: #daa520; 
-        background: #2a2a2a; 
-        box-shadow: 0 0 10px rgba(218, 165, 20, 0.2); 
+    .theme-card.active {
+        border-color: #daa520;
+        background: #2a2a2a;
+        box-shadow: 0 0 10px rgba(218, 165, 20, 0.2);
         transition: all 0.3s ease;
         transform: translateX(5px);
     }
@@ -134,7 +134,28 @@ $currentConfig = $themes[$currentThemeName] ?? [];
     transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
-
+.preview-toggle-bar {
+    background: #212529;
+    border: 1px solid #343a40;
+    border-radius: 8px;
+    padding: 5px 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 500px;
+    margin: 0 auto 10px auto;
+    transition: background 0.2s;
+}
+.preview-toggle-bar:hover {
+    background: #2c3034;
+}
+.preview-toggle-bar i {
+    transition: transform 0.3s;
+}
+.collapsed i {
+    transform: rotate(-90deg);
+}
 </style>
 </head>
 <body>
@@ -166,16 +187,16 @@ $currentConfig = $themes[$currentThemeName] ?? [];
                                     <label><?= $field ?>:</label>
                                     <div class="color-picker-group mb-2">
                                         <div id="picker-<?= $field ?>"></div>
-                                        <input type="text" name="config[<?= $field ?>]" id="<?= $field ?>" 
-                                            class="form-control form-control-sm color-input" 
-                                            value="<?= $currentConfig[$field] ?? 'rgba(0,0,0,1)' ?>" 
+                                        <input type="text" name="config[<?= $field ?>]" id="<?= $field ?>"
+                                            class="form-control form-control-sm color-input"
+                                            value="<?= $currentConfig[$field] ?? 'rgba(0,0,0,1)' ?>"
                                             oninput="updatePreview()">
                                     </div>
                                 <?php endforeach; ?>
                         </div>
                         <div class="col-6">
                             <h5>Texte & Icons</h5>
-                            <?php 
+                            <?php
                             foreach ($textFields as $field): ?>
                                 <label><?= $field ?>:</label>
                                 <input type="text" name="config[<?= $field ?>]" id="<?= $field ?>" class="form-control form-control-sm" value="<?= $currentConfig[$field] ?? '' ?>" oninput="updatePreview()">
@@ -187,8 +208,8 @@ $currentConfig = $themes[$currentThemeName] ?? [];
 
 <?php else: ?>
     <h3>✨ Theme Gallery</h3>
-            
-    
+
+
 <div class="mt-2 p-2 border border-warning rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm">
     <div class="d-flex align-items-center gap-2">
         <span class="text-warning" style="font-size: 1.2rem;">⚡</span>
@@ -201,11 +222,11 @@ $currentConfig = $themes[$currentThemeName] ?? [];
         📋 Script kopieren
     </button>
 </div>
-<div class="mt-4 p-2 border border-info rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm" 
-     style="cursor: pointer;" 
-     data-bs-toggle="collapse" 
-     data-bs-target="#installGuide" 
-     aria-expanded="false" 
+<div class="mt-4 p-2 border border-info rounded bg-dark d-flex align-items-center justify-content-between gap-3 shadow-sm"
+     style="cursor: pointer;"
+     data-bs-toggle="collapse"
+     data-bs-target="#installGuide"
+     aria-expanded="false"
      aria-controls="installGuide">
     <div class="d-flex align-items-center gap-2">
         <span class="text-info" style="font-size: 1.2rem;">🛠️</span>
@@ -243,31 +264,31 @@ $currentConfig = $themes[$currentThemeName] ?? [];
 </div>
 
 
-                
+
     <p class="text-muted">Wähle ein Theme aus oder kopiere den Namen:</p>
     <div id="themeSelector">
         <?php foreach ($themes as $name => $cfg): ?>
-            <div class="theme-card w-100 <?= $name == $currentThemeName ? 'active' : '' ?>" 
+            <div class="theme-card w-100 <?= $name == $currentThemeName ? 'active' : '' ?>"
                  onclick="document.getElementById('radio_<?= md5($name) ?>').click()">
-                
-                <input type="radio" id="radio_<?= md5($name) ?>" name="viewerTheme" class="hidden-radio" 
-                       value="<?= htmlspecialchars(json_encode($cfg)) ?>" 
+
+                <input type="radio" id="radio_<?= md5($name) ?>" name="viewerTheme" class="hidden-radio"
+                       value="<?= htmlspecialchars(json_encode($cfg)) ?>"
                        onchange="selectViewerTheme(this, '<?= htmlspecialchars($name) ?>')">
-                
+
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <span style="font-size: 1.2em; margin-right: 8px;"><?= $cfg['headerIcon'] ?></span>
                         <strong style="color: <?= $cfg['colorPrimary'] ?>;"><?= htmlspecialchars($name) ?></strong>
                     </div>
-                    
+
                     <div class="d-flex gap-2 align-items-center">
                         <span class="badge" style="background: <?= $cfg['colorBg'] ?>; color: <?= $cfg['colorBoltCore'] ?>; border: 1px solid rgba(255,255,255,0.2);">
                             Vorschau
                         </span>
-                        
-                        <button class="btn btn-sm btn-outline-light" 
+
+                        <button class="btn btn-sm btn-outline-light"
                                 style="padding: 2px 6px; font-size: 0.8em; border-color: #444;"
-                                onclick="copyToClipboard(event, '<?= htmlspecialchars($name) ?>')" 
+                                onclick="copyToClipboard(event, '<?= htmlspecialchars($name) ?>')"
                                 title="Name kopieren">
                             📋
                         </button>
@@ -282,8 +303,13 @@ $currentConfig = $themes[$currentThemeName] ?? [];
 <div class="col-md-7">
     <div class="sticky-column">
     <h3 class="text-center mb-4">👁️ Foundry Chat Vorschau</h3>
-    
-    <div class="card bg-dark border-secondary mb-4 p-3 shadow-lg" style="max-width: 500px; margin: 0 auto;">
+
+<div class="preview-toggle-bar shadow-sm" onclick="togglePreviewBox()" id="toggleBar">
+    <span class="small fw-bold text-muted text-uppercase">⚙️ Vorschau-Einstellungen</span>
+    <span class="text-muted" id="toggleIcon">▼</span>
+</div>
+<div id="previewSettingsBox" class="card bg-dark border-secondary mb-4 p-3 shadow-lg" style="max-width: 500px; margin: 0 auto; display: none;">
+
         <div class="row g-3">
             <div class="col-12">
                 <label class="small text-muted mb-1 d-block">Gezogene Karten (IDs 1-60):</label>
@@ -310,7 +336,7 @@ $currentConfig = $themes[$currentThemeName] ?? [];
             </button>
         </div>
     </div>
-    
+
 
     <div class="d-flex justify-content-center">
         <div id="previewArea" class="preview-pane">
@@ -323,14 +349,28 @@ $currentConfig = $themes[$currentThemeName] ?? [];
 
 <script>
 
+function togglePreviewBox() {
+    const box = document.getElementById('previewSettingsBox');
+    const icon = document.getElementById('toggleIcon');
+    const bar = document.getElementById('toggleBar');
 
+    if (box.style.display === 'none') {
+        box.style.display = 'block';
+        icon.innerText = '▼';
+        bar.classList.remove('collapsed');
+    } else {
+        box.style.display = 'none';
+        icon.innerText = '◀';
+        bar.classList.add('collapsed');
+    }
+}
 // Für den Viewer-Modus: Theme-Daten global halten
 let currentViewerConfig = <?= json_encode($currentConfig) ?>;
 
 async function copyMacroToClipboard() {
     const btn = document.getElementById('copyMacroBtn');
     const originalText = btn.innerHTML;
-    
+
     try {
         // 1. Script-Datei vom Server laden
         const response = await fetch('foundry-macro.js?t=' + new Date().getTime(), {
@@ -350,7 +390,7 @@ async function copyMacroToClipboard() {
         // 4. Feedback für den User
         btn.innerHTML = "✅ Script kopiert!";
         btn.classList.replace('btn-warning', 'btn-success');
-        
+
         setTimeout(() => {
             btn.innerHTML = originalText;
             btn.classList.replace('btn-success', 'btn-warning');
@@ -410,15 +450,15 @@ function selectViewerTheme(radio, name) {
 function copyToClipboard(event, text) {
     // Verhindert, dass das Theme gewechselt wird, wenn man nur kopieren will
     if(event) event.stopPropagation();
-    
+
     navigator.clipboard.writeText(text).then(() => {
         const btn = event.currentTarget; // Nutze currentTarget für den Button selbst
         const oldContent = btn.innerHTML;
         btn.innerHTML = "✅";
         btn.classList.replace('btn-outline-light', 'btn-success');
-        
-        setTimeout(() => { 
-            btn.innerHTML = oldContent; 
+
+        setTimeout(() => {
+            btn.innerHTML = oldContent;
             btn.classList.replace('btn-success', 'btn-outline-light');
         }, 1000);
     });
@@ -478,8 +518,8 @@ async function updatePreview() {
                 customConfig: themeConfig, // Schickt die aktuellen Editor-Farben mit!
                 overrideHand: handIds,
                 ownedCards: ownedIds,
-                world: "Theme-Editor", 
-                version: "" , 
+                world: "Theme-Editor",
+                version: "" ,
                 url: serverUrl,
                 scriptVersion: <?php echo $currentVersion; ?>,
             })
@@ -513,7 +553,7 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault(); // Verhindert das Scrollen der Seite
 
         const isAdmin = <?= json_encode($is_logged_in) ?>;
-        
+
         if (isAdmin) {
             // ADMIN LOGIK: Navigiere in der Select-Box
             const select = document.querySelector('select[name="theme"]');
@@ -550,7 +590,7 @@ document.getElementById('previewArea').addEventListener('mouseover', (e) => {
 
     // Hole den String "colorBg,colorBoltCore,..." und mache ein Array daraus
     const keys = target.getAttribute('data-edit-keys').split(',');
-    
+
     document.querySelectorAll('.highlight-input').forEach(el => el.classList.remove('highlight-input'));
 
     keys.forEach(key => {
