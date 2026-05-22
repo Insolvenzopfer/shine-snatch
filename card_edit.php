@@ -2,48 +2,52 @@
 session_start();
 
 // HIER DEIN PASSWORT ÄNDERN zeile auskommmentieren, seite aufrufen und in der variable darunter setzen
-//echo password_hash('ShineSnatchIstSuper69!', PASSWORD_DEFAULT);
+// echo password_hash("ShineSnatchIstSuper!42$", PASSWORD_DEFAULT);
 
-$admin_password_hash = '$2y$12$peuzsRVkOW/Q6V55HBghK.N.SYmJDb47yHULU9KEC9C0Un1rY3f9S'; 
+$admin_password_hash =
+    '$2y$12$VQBvnaRmyhYYorVtby/J9ukVJqq7lT.7P5eST.UrzodjdJ8Ki9iZC';
 
-$themesFile = 'themes.json';
+$themesFile = "themes.json";
 $themesData = json_decode(file_get_contents($themesFile), true);
 
-if (isset($_GET['logout'])) {
+if (isset($_GET["logout"])) {
     session_destroy();
     header("Location: card_edit.php");
-    exit;
+    exit();
 }
 
-if (isset($_POST['login_pass'])) {
-    if (password_verify($_POST['login_pass'], $admin_password_hash)) {
-        $_SESSION['loggedin'] = true;
+if (isset($_POST["login_pass"])) {
+    if (password_verify($_POST["login_pass"], $admin_password_hash)) {
+        $_SESSION["loggedin"] = true;
     } else {
         $error = "Falsches Passwort!";
     }
 }
 
-function getDynamicStyle($id) {
-    if (empty($id)) return "";
-    $prefix = substr((string)$id, 0, 3);
-    
+function getDynamicStyle($id)
+{
+    if (empty($id)) {
+        return "";
+    }
+    $prefix = substr((string) $id, 0, 3);
+
     // Wir bauen einen einfachen Hash, den JS leicht nachbauen kann
     $h = 0;
     foreach (str_split($prefix) as $char) {
         $h = ($h << 5) - $h + ord($char);
     }
-    
+
     $hue = abs($h % 360);
     return "style='border-color: hsl($hue, 70%, 50%); background: hsl($hue, 70%, 15%);'";
 }
 
-if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true): ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <title>Login - Card Editor</title>
-    
+
     <style>
         body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-box { background: #1e1e1e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); text-align: center; border: 1px solid #333; }
@@ -54,7 +58,9 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
 <body>
     <div class="login-box">
         <h2>🔒 Card Editor Login</h2>
-        <?php if (isset($error)) echo "<p style='color:#cf6679'>$error</p>"; ?>
+        <?php if (isset($error)) {
+            echo "<p style='color:#cf6679'>$error</p>";
+        } ?>
         <form method="POST">
             <input type="password" name="login_pass" placeholder="Passwort" autofocus><br>
             <button type="submit">Einloggen</button>
@@ -62,40 +68,56 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
     </div>
 </body>
 </html>
-<?php exit; endif; 
+<?php exit();endif;
 
-$file = 'game_data.json';
+$file = "game_data.json";
 $data = json_decode(file_get_contents($file), true);
 $message = "";
 
-if (isset($_POST['save'])) {
-    $updatedData = ['cardTypes' => [], 'groups' => [], 'combos' => []];
+if (isset($_POST["save"])) {
+    $updatedData = ["cardTypes" => [], "groups" => [], "combos" => []];
 
-    foreach (($_POST['cards'] ?? []) as $c) {
-        if(empty($c['id'])) continue;
-        $updatedData['cardTypes'][] = [
-            'id' => $c['id'], 'name' => $c['name'], 'count' => (int)$c['count'],
-            'points' => (int)$c['points'], 'startId' => (int)$c['startId'], 'emoji' => $c['emoji']
+    foreach ($_POST["cards"] ?? [] as $c) {
+        if (empty($c["id"])) {
+            continue;
+        }
+        $updatedData["cardTypes"][] = [
+            "id" => $c["id"],
+            "name" => $c["name"],
+            "count" => (int) $c["count"],
+            "points" => (int) $c["points"],
+            "startId" => (int) $c["startId"],
+            "emoji" => $c["emoji"],
         ];
     }
 
-    foreach (($_POST['groups'] ?? []) as $g) {
-        if(empty($g['id'])) continue;
-        $updatedData['groups'][] = [
-            'id' => $g['id'],
-            'cards' => array_values(array_filter($g['cards'] ?? []))
+    foreach ($_POST["groups"] ?? [] as $g) {
+        if (empty($g["id"])) {
+            continue;
+        }
+        $updatedData["groups"][] = [
+            "id" => $g["id"],
+            "cards" => array_values(array_filter($g["cards"] ?? [])),
         ];
     }
 
-    foreach (($_POST['combos'] ?? []) as $cb) {
-        if(empty($cb['name'])) continue;
-        $updatedData['combos'][] = [
-            'emoji' => $cb['emoji'], 'name' => $cb['name'], 'points' => (int)$cb['points'],
-            'needs' => array_values(array_filter($cb['needs'] ?? [])), 'cat' => $cb['cat']
+    foreach ($_POST["combos"] ?? [] as $cb) {
+        if (empty($cb["name"])) {
+            continue;
+        }
+        $updatedData["combos"][] = [
+            "emoji" => $cb["emoji"],
+            "name" => $cb["name"],
+            "points" => (int) $cb["points"],
+            "needs" => array_values(array_filter($cb["needs"] ?? [])),
+            "cat" => $cb["cat"],
         ];
     }
 
-    file_put_contents($file, json_encode($updatedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    file_put_contents(
+        $file,
+        json_encode($updatedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+    );
     $data = $updatedData;
     $message = "✅ Datenbank erfolgreich aktualisiert!";
 }
@@ -117,18 +139,18 @@ if (isset($_POST['save'])) {
         body { font-family: 'Signika', sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin-bottom: 100px; }
         .container { max-width: 1200px; margin: 0 auto; }
         .section { background: var(--panel); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.05); }
-        
+
         h2 { color: var(--accent); display: flex; justify-content: space-between; align-items: center; margin-top: 0; }
-        
+
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 10px; color: var(--text); opacity: 0.6; font-weight: 300; font-size: 0.8rem; }
         td { padding: 8px; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,0.03); }
 
         input { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px; border-radius: 8px; width: 100%; box-sizing: border-box; }
-        
+
         .selection-container { display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; align-items: center; }
-        .select-btn { 
-            background: var(--card-bg); border: 1px dashed rgba(255,255,255,0.2); color: var(--text); 
+        .select-btn {
+            background: var(--card-bg); border: 1px dashed rgba(255,255,255,0.2); color: var(--text);
             padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;
             display: flex; align-items: center; gap: 5px;
         }
@@ -144,7 +166,7 @@ if (isset($_POST['save'])) {
             width: 80%; max-width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--accent);
         }
         .modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 20px; }
-        .modal-item { 
+        .modal-item {
             background: #252525; padding: 10px; border-radius: 10px; cursor: pointer; text-align: center;
             border: 1px solid transparent; transition: 0.2s;
         }
@@ -153,7 +175,7 @@ if (isset($_POST['save'])) {
 
         .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 10px; cursor: pointer; }
         .btn-del { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); padding: 8px; border-radius: 8px; cursor: pointer; }
-        
+
         .save-bar { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; border: none; padding: 15px 50px; border-radius: 50px; font-weight: 600; cursor: pointer; box-shadow: 0 10px 40px rgba(0,0,0,0.5); z-index: 100; }
         .msg { background: rgba(44, 178, 76, 0.2); color: #fff; padding: 15px; border-radius: 15px; margin-bottom: 20px; text-align: center; border: 1px solid var(--primary); }
         .search-input { margin-bottom: 15px; font-size: 1.1rem; padding: 12px; }
@@ -193,23 +215,37 @@ if (isset($_POST['save'])) {
         <a href="?logout=1" style="color: var(--danger); text-decoration: none;">✖ Logout</a>
     </div>
 
-    <?php if($message) echo "<div class='msg'>$message</div>"; ?>
+    <?php if ($message) {
+        echo "<div class='msg'>$message</div>";
+    } ?>
 
     <form method="POST" id="dbForm">
         <div class="section">
             <h2>Karten-Typen <!-- <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button> --></h2>
             <table id="cardsTable">
-                <thead><tr><th>ID</th><th>Emoji</th><th>Name</th><th>Anz.</th><th>Pkt.</th><th>StartId</th><th width="40"></th></tr></thead>
+                <thead><tr><th>ID</th><th>Emoji</th><th>Name</th><th>Anz.</th><th>Pkt.</th><th>StartId</th><!-- <th width="40"></th> --></tr></thead>
                 <tbody>
-                    <?php foreach ($data['cardTypes'] as $idx => $ct): ?>
+                    <?php foreach ($data["cardTypes"] as $idx => $ct): ?>
                     <tr>
-                        <td><input type="text" name="cards[<?=$idx?>][id]" value="<?=$ct['id']?>" style="width:70px; color:var(--primary); text-align:center;"></td>
-                        <td><input type="text" name="cards[<?=$idx?>][emoji]" value="<?=$ct['emoji']?>" style="width:50px; text-align:center;"></td>
-                        <td><input type="text" name="cards[<?=$idx?>][name]" value="<?=$ct['name']?>"></td>
-                        <td><input type="number" name="cards[<?=$idx?>][count]" value="<?=$ct['count']?>" style="width:60px;"></td>
-                        <td><input type="number" name="cards[<?=$idx?>][points]" value="<?=$ct['points']?>" style="width:60px;"></td>
-                        <td><input type="number" name="cards[<?=$idx?>][startId]" value="<?=$ct['startId']?>" style="width:70px;"></td>
-                        <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][id]" value="<?= $ct[
+    "id"
+] ?>" style="width:70px; color:var(--primary); text-align:center;"></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][emoji]" value="<?= $ct[
+    "emoji"
+] ?>" style="width:50px; text-align:center;"></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][name]" value="<?= $ct[
+    "name"
+] ?>"></td>
+                        <td><input type="number" name="cards[<?= $idx ?>][count]" value="<?= $ct[
+    "count"
+] ?>" style="width:60px;"></td>
+                        <td><input type="number" name="cards[<?= $idx ?>][points]" value="<?= $ct[
+    "points"
+] ?>" style="width:60px;"></td>
+                        <td><input type="number" name="cards[<?= $idx ?>][startId]" value="<?= $ct[
+    "startId"
+] ?>" style="width:70px;"></td>
+                        <!-- <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td> -->
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -221,27 +257,39 @@ if (isset($_POST['save'])) {
             <table id="groupsTable">
                 <thead><tr><th width="200">Gruppen-ID</th><th>Karten in Gruppe (Max 12)</th><th width="40"></th></tr></thead>
                 <tbody>
-                    <?php foreach ($data['groups'] as $idx => $g): ?>
+                    <?php foreach ($data["groups"] as $idx => $g): ?>
                     <tr>
-                        <td><input type="text" name="groups[<?=$idx?>][id]" value="<?=$g['id']?>" style="color:var(--accent)"></td>
+                        <td><input type="text" name="groups[<?= $idx ?>][id]" value="<?= $g[
+    "id"
+] ?>" style="color:var(--accent)"></td>
                         <td>
-                            <div class="selection-container" data-type="group" data-row="<?=$idx?>" data-max="12">
-                                <?php 
-                                foreach(($g['cards'] ?? []) as $val): 
-                                    $displayEmoji = '';
-                                    foreach($data['cardTypes'] as $ct) { if($ct['id'] == $val) { $displayEmoji = $ct['emoji']; break; } }
-                                ?>
-             <button type="button" class="select-btn filled" <?=getDynamicStyle($val)?> onclick="openPicker(this)">
-    <span class="label"><?=$displayEmoji?> <?=$val?></span>
-    <input type="hidden" name="groups[<?=$idx?>][cards][]" value="<?=$val?>">
+                            <div class="selection-container" data-type="group" data-row="<?= $idx ?>" data-max="12">
+                                <?php
+                                foreach ($g["cards"] ?? [] as $val):
+
+                                    $displayEmoji = "";
+                                    foreach ($data["cardTypes"] as $ct) {
+                                        if ($ct["id"] == $val) {
+                                            $displayEmoji = $ct["emoji"];
+                                            break;
+                                        }
+                                    }
+                                    ?>
+             <button type="button" class="select-btn filled" <?= getDynamicStyle(
+                 $val,
+             ) ?> onclick="openPicker(this)">
+    <span class="label"><?= $displayEmoji ?> <?= $val ?></span>
+    <input type="hidden" name="groups[<?= $idx ?>][cards][]" value="<?= $val ?>">
 </button>
-                                <?php endforeach; 
-                                if(count($g['cards'] ?? []) < 12): ?>
+                                <?php
+                                endforeach;
+                                if (count($g["cards"] ?? []) < 12): ?>
                                     <button type="button" class="select-btn" onclick="openPicker(this)">
                                         <span class="label">+ Wählen</span>
-                                        <input type="hidden" name="groups[<?=$idx?>][cards][]" value="">
+                                        <input type="hidden" name="groups[<?= $idx ?>][cards][]" value="">
                                     </button>
-                                <?php endif; ?>
+                                <?php endif;
+                                ?>
                             </div>
                         </td>
                         <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
@@ -254,54 +302,75 @@ if (isset($_POST['save'])) {
         <div class="section">
             <h2>Kombinationen <button type="button" class="btn-add" onclick="addRow('combosTable')">+ Neu</button></h2>
             <table id="combosTable">
-                <thead><tr><th width="30">↕</th><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Max 5)</th><th>Kategorie</th><th width="40"></th></tr></thead>
+                <thead><tr><th width="30">↕</th><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Max 5)</th><th>Kategorie-Theme</th><th width="40"></th></tr></thead>
                 <tbody>
-                    <?php foreach ($data['combos'] as $idx => $cb): ?>
+                    <?php foreach ($data["combos"] as $idx => $cb): ?>
 
                     <tr class="sortable-row">
                         <td class="drag-handle" style="cursor: grab; color: var(--accent); text-align: center;">☰</td>
-                        <td><input type="text" name="combos[<?=$idx?>][emoji]" value="<?=$cb['emoji']?>" style="width:50px; text-align:center;"></td>
-                        <td><input type="text" name="combos[<?=$idx?>][name]" value="<?=$cb['name']?>"></td>
-                        <td><input type="number" name="combos[<?=$idx?>][points]" value="<?=$cb['points']?>" style="width:60px;"></td>
+                        <td><input type="text" name="combos[<?= $idx ?>][emoji]" value="<?= $cb[
+    "emoji"
+] ?>" style="width:70px; text-align:center;"></td>
+                        <td><input type="text" name="combos[<?= $idx ?>][name]" value="<?= $cb[
+    "name"
+] ?>"></td>
+                        <td><input type="number" name="combos[<?= $idx ?>][points]" value="<?= $cb[
+    "points"
+] ?>" style="width:60px;"></td>
                         <td>
-                            <div class="selection-container" data-type="combo" data-row="<?=$idx?>" data-max="5">
-                                <?php 
-                                foreach(($cb['needs'] ?? []) as $val): 
-                                    $displayEmoji = '';
-                                    foreach($data['cardTypes'] as $ct) { if($ct['id'] == $val) { $displayEmoji = $ct['emoji']; break; } }
-                                    if(empty($displayEmoji)) $displayEmoji = '📁';
-                                ?>
-<button type="button" class="select-btn filled" <?=getDynamicStyle($val)?> onclick="openPicker(this)">
-    <span class="label"><?=($displayEmoji ?: '📁')?> <?=$val?></span>
-    <input type="hidden" name="combos[<?=$idx?>][needs][]" value="<?=$val?>">
+                            <div class="selection-container" data-type="combo" data-row="<?= $idx ?>" data-max="5">
+                                <?php
+                                foreach ($cb["needs"] ?? [] as $val):
+
+                                    $displayEmoji = "";
+                                    foreach ($data["cardTypes"] as $ct) {
+                                        if ($ct["id"] == $val) {
+                                            $displayEmoji = $ct["emoji"];
+                                            break;
+                                        }
+                                    }
+                                    if (empty($displayEmoji)) {
+                                        $displayEmoji = "📁";
+                                    }
+                                    ?>
+<button type="button" class="select-btn filled" <?= getDynamicStyle(
+    $val,
+) ?> onclick="openPicker(this)">
+    <span class="label"><?= $displayEmoji ?: "📁" ?> <?= $val ?></span>
+    <input type="hidden" name="combos[<?= $idx ?>][needs][]" value="<?= $val ?>">
 </button>
-                                <?php endforeach; 
-                                if(count($cb['needs'] ?? []) < 5): ?>
+                                <?php
+                                endforeach;
+                                if (count($cb["needs"] ?? []) < 5): ?>
                                     <button type="button" class="select-btn" onclick="openPicker(this)">
                                         <span class="label">+ Wählen</span>
-                                        <input type="hidden" name="combos[<?=$idx?>][needs][]" value="">
+                                        <input type="hidden" name="combos[<?= $idx ?>][needs][]" value="">
                                     </button>
-                                <?php endif; ?>
+                                <?php endif;
+                                ?>
                             </div>
                         </td>
                         <td>
-    <select name="combos[<?=$idx?>][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+    <select name="combos[<?= $idx ?>][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
         <option value="">-- Kein Theme --</option>
-        <?php 
-        if (!empty($themesData)) {
-            foreach ($themesData as $themeKey => $themeValues) { 
+        <?php if (!empty($themesData)) {
+            foreach ($themesData as $themeKey => $themeValues) {
+
                 // Wir nutzen den Key (z.B. "Gold") als ID
                 // Und schauen nach einem Emoji (falls vorhanden, sonst Standard)
                 $name = $themeKey;
-                $emoji = $themeValues['headerIcon'] ?? '✨';
+                $emoji = $themeValues["headerIcon"] ?? "✨";
                 ?>
-                <option value="<?= htmlspecialchars($themeKey) ?>" <?= (isset($cb['cat']) && $cb['cat'] == $themeKey) ? 'selected' : '' ?>>
+                <option value="<?= htmlspecialchars($themeKey) ?>" <?= isset(
+    $cb["cat"],
+) && $cb["cat"] == $themeKey
+    ? "selected"
+    : "" ?>>
                     <?= $name ?> <?= $emoji ?> <!-- Name nach vorne gestellt -->
                 </option>
-                <?php 
+                <?php
             }
-        }
-        ?>
+        } ?>
     </select>
 </td>
                         <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
@@ -328,8 +397,8 @@ if (isset($_POST['save'])) {
 
 <script>
 let currentTargetBtn = null;
-const allCardOptions = <?= json_encode($data['cardTypes']) ?>;
-const allGroupOptions = <?= json_encode(array_column($data['groups'], 'id')) ?>;
+const allCardOptions = <?= json_encode($data["cardTypes"]) ?>;
+const allGroupOptions = <?= json_encode(array_column($data["groups"], "id")) ?>;
 
 // Sortier-Funktion initialisieren
 function initSortable() {
@@ -359,7 +428,7 @@ function initSortableGroups() {
 document.addEventListener('DOMContentLoaded', () => {
     initSortable();
     // Falls du auch Gruppen sortieren willst, füge dort auch den Handle ein und aktiviere dies:
-    // initSortableGroups(); 
+    // initSortableGroups();
 });
 
 function addRow(tableId) {
@@ -389,7 +458,7 @@ function addRow(tableId) {
             <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
     } else if (tableId === 'combosTable') {
     let themeOptions = '<option value="">-- Kein Theme --</option>';
-    
+
     // Da themesData ein Objekt ist, nutzen wir Object.entries
 if (allThemes) {
     Object.entries(allThemes).forEach(([key, value]) => {
@@ -429,7 +498,7 @@ function openPicker(btn) {
     const grid = document.getElementById('modalGrid');
     const type = btn.closest('.selection-container').dataset.type;
     const currentValue = btn.querySelector('input').value;
-    
+
     grid.innerHTML = '';
 
     const emptyDiv = document.createElement('div');
@@ -437,7 +506,7 @@ function openPicker(btn) {
     emptyDiv.onclick = () => selectOption('');
     emptyDiv.innerHTML = '❌ LEEREN / LÖSCHEN';
     grid.appendChild(emptyDiv);
-    
+
     allCardOptions.forEach(c => {
         const item = document.createElement('div');
         item.className = 'modal-item' + (currentValue === c.id ? ' active' : '');
@@ -460,7 +529,7 @@ function openPicker(btn) {
     modal.style.display = 'block';
     const searchInput = document.getElementById('modalSearch');
     searchInput.value = '';
-    filterModal(); 
+    filterModal();
     searchInput.focus();
 
     setTimeout(() => {
@@ -492,7 +561,7 @@ function selectOption(val, emoji = '') {
 function refreshSelectionFields(container, max) {
     const buttons = Array.from(container.querySelectorAll('.select-btn'));
     const values = buttons.map(b => b.querySelector('input').value).filter(v => v !== '');
-    
+
     container.innerHTML = '';
     const type = container.dataset.type;
     const rowIdx = container.dataset.row;
