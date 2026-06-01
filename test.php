@@ -1,7 +1,6 @@
 <?php
-$config = require 'config.php';
-$currentVersion = $config['current_version'];
-
+$config = require "config.php";
+$currentVersion = $config["current_version"];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -10,31 +9,31 @@ $currentVersion = $config['current_version'];
     <title>Shine-Snatch API & Debug Tester</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #eee; display: flex; gap: 20px; padding: 20px; margin: 0; }
-        
+
         /* Linke Spalte */
         .sidebar { width: 450px; display: flex; flex-direction: column; gap: 15px; }
         .form-container, .debug-container { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
-        
+
         /* Rechte Spalte */
         .preview-container { flex-grow: 1; background: #2a2a2a; padding: 20px; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; min-height: 95vh; }
-        
+
         label { display: block; margin-top: 10px; font-size: 0.85em; color: #aaa; font-weight: bold; }
         input, select { width: 100%; padding: 8px; margin-top: 5px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
-        
+
         .input-group { display: flex; gap: 5px; margin-top: 5px; }
         .btn-small { width: auto; margin-top: 0; padding: 0 12px; background: #4b5563; font-size: 0.9em; border-radius: 4px; border: none; color: white; cursor: pointer; }
         .btn-small:hover { background: #6b7280; }
 
         button#sendBtn { width: 100%; margin-top: 20px; padding: 12px; background: #7e22ce; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button#sendBtn:hover { background: #9333ea; }
-        
+
         .debug-title { border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; color: #00ff00; font-size: 1em; }
         .status-badge { padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold; }
         .status-ok { background: #065f46; color: #34d399; }
         .status-error { background: #7f1d1d; color: #f87171; }
-        
+
         pre { background: #000; padding: 10px; font-size: 0.75em; overflow: auto; border: 1px solid #333; }
-        
+
         /* Mehrzeilige Debug-Bereiche */
         #rawResponse { height: 200px; white-space: pre-wrap; color: #ff4444; border-color: #552222; } /* Rot für potenzielle PHP Fehler */
         #htmlCodeDisplay { height: 300px; white-space: pre-wrap; color: #38bdf8; }
@@ -53,7 +52,9 @@ $currentVersion = $config['current_version'];
         <h2>🚀 API Tester</h2>
         <form id="apiForm">
             <label>API URL</label>
-            <input type="text" id="apiUrl" value="<?php echo $config['api_url'] ?>">
+            <input type="text" id="apiUrl" value="<?php echo $config[
+                "api_url"
+            ]; ?>">
 
             <label>Spieler (actorName)</label>
             <input type="text" id="actorName" value="TestUser">
@@ -90,7 +91,7 @@ $currentVersion = $config['current_version'];
 
     <label>Sende-Payload:</label>
     <pre id="payloadDisplay">{}</pre>
-        
+
         <label>PHP-Output / Roh-Antwort:</label>
         <pre id="rawResponse">Hier erscheinen PHP-Fehler oder das Roh-JSON...</pre>
 
@@ -115,13 +116,13 @@ $currentVersion = $config['current_version'];
 function generateRandomHand() {
     const pool = [];
     for (let i = 1; i <= 60; i++) pool.push(i);
-    
+
     const selected = [];
     for (let i = 0; i < 5; i++) {
         const randomIndex = Math.floor(Math.random() * pool.length);
         selected.push(pool.splice(randomIndex, 1)[0]);
     }
-    
+
     document.getElementById('overrideHand').value = selected.sort((a,b) => a-b).join(',');
 }
 
@@ -133,15 +134,46 @@ async function sendRequest() {
     const payloadPre = document.getElementById('payloadDisplay');
     const hexDiv = document.getElementById('hexDump');
     const statusSpan = document.getElementById('debugStatus');
-    
+
+    const chosenTheme = document.getElementById('theme').value;
+
     const payload = {
         actorName: document.getElementById('actorName').value,
-        theme: document.getElementById('theme').value,
+        theme: chosenTheme,
         world: document.getElementById('world').value,
         version: "1.0.0-debug",
-        scriptVersion: document.getElementById('scriptVersion').value, 
+        scriptVersion: document.getElementById('scriptVersion').value,
         ownedCards: document.getElementById('ownedCards').value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n))
     };
+
+    // NEU: Wenn PREVIEW_MODE gewählt ist, hängen wir eine Test-Konfiguration an
+    if (chosenTheme.trim().toUpperCase() === "PREVIEW_MODE") {
+        payload.customConfig = {
+            "colorPrimary": "#3b82f6",          // Blaues Haupt-Theme für den Test
+            "colorGlowMain": "rgba(59, 130, 246, 0.4)",
+            "colorBoltCore": "#ffffff",
+            "colorAccent": "#ef4444",
+            "colorBg": "#0f172a",               // Dunkles Schiefer-Blau
+            "colorBgCard": "rgba(255, 255, 255, 0.03)",
+            "shadowColor": "rgba(0, 0, 0, 0.8)",
+            "colorTextMain": "#f8fafc",
+            "colorSpecialBg": "rgba(59, 130, 246, 0.1)",
+            "colorTextMuted": "#64748b",
+            "colorTextComboIds": "#94a3b8",
+            "headerIcon": "🧪",
+            "headerTitle": "Debug-Vorschau",
+            "specialCardEmoji": "💎",
+            "labelHand": "Gezogene Test-Karten:",
+            "labelHandSum": "Würfel-Augen:",
+            "labelSpecialBonus": "Set-Bonus:",
+            "labelSubTotal": "Zwischenstand:",
+            "labelCombos": "Gefundene Kombinationen:",
+            "iconCombo": "❖",
+            "labelUnused": "Ungenutztes Potenzial:",
+            "iconUnused": "◇",
+            "labelTotal": "TEST-SCORE:"
+        };
+    }
 
     const ohVal = document.getElementById('overrideHand').value;
     if(ohVal.trim() !== "") {
@@ -160,14 +192,14 @@ async function sendRequest() {
 
         const duration = (performance.now() - startTime).toFixed(0);
         const textResponse = await response.text();
-        
+
         // Anzeige der Rohdaten (JETZT MEHRZEILIG)
         rawPre.innerText = textResponse;
         generateHexDump(textResponse, hexDiv);
 
         if (response.ok) {
             statusSpan.innerHTML = `<span class="status-badge status-ok">HTTP ${response.status} OK (${duration}ms)</span>`;
-            
+
             try {
                 // Falls PHP Fehler vor dem JSON stehen, schlägt JSON.parse fehl.
                 // Das ist gut, denn dann siehst du den Fehler oben in "rawResponse".
@@ -176,7 +208,7 @@ async function sendRequest() {
                     htmlCodePre.innerText = data.html;
                     const doc = frame.contentWindow.document;
                     doc.open();
-                    doc.write('<html><head><link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600;700&display=swap" rel="stylesheet"><style>body{margin:0; background:#000; display:flex; justify-content:center; align-items:flex-start; padding:20px;}</style></head><body>' + data.html + '</body></html>');
+                    doc.write('<html><head><style>body{margin:0; background:#000; display:flex; justify-content:center; align-items:flex-start; padding:20px;}</style></head><body>' + data.html + '</body></html>');
                     doc.close();
                 }
             } catch (jsonErr) {

@@ -1,14 +1,7 @@
 <?php
 session_start();
-
-// HIER DEIN PASSWORT ÄNDERN zeile auskommmentieren, seite aufrufen und in der variable darunter setzen
-// echo password_hash("ShineSnatchIstSuper!42$", PASSWORD_DEFAULT);
-
-$admin_password_hash =
-    '$2y$12$VQBvnaRmyhYYorVtby/J9ukVJqq7lT.7P5eST.UrzodjdJ8Ki9iZC';
-
-$themesFile = "themes.json";
-$themesData = json_decode(file_get_contents($themesFile), true);
+$config = require "config.php";
+$admin_password_hash = $config["admin_password_hash"];
 
 if (isset($_GET["logout"])) {
     session_destroy();
@@ -31,7 +24,6 @@ function getDynamicStyle($id)
     }
     $prefix = substr((string) $id, 0, 3);
 
-    // Wir bauen einen einfachen Hash, den JS leicht nachbauen kann
     $h = 0;
     foreach (str_split($prefix) as $char) {
         $h = ($h << 5) - $h + ord($char);
@@ -47,7 +39,6 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true): ?>
 <head>
     <meta charset="UTF-8">
     <title>Login - Card Editor</title>
-
     <style>
         body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-box { background: #1e1e1e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); text-align: center; border: 1px solid #333; }
@@ -70,56 +61,146 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true): ?>
 </html>
 <?php exit();endif;
 
-$file = "game_data.json";
-$data = json_decode(file_get_contents($file), true);
+// Zentrale DB-Verbindung laden
+require_once "db.php";
+$pdo = getDatabaseConnection();
 $message = "";
 
+// --- DATEN SPEICHERN ---
 if (isset($_POST["save"])) {
-    $updatedData = ["cardTypes" => [], "groups" => [], "combos" => []];
+    try {
+        $pdo->beginTransaction();
 
-    foreach ($_POST["cards"] ?? [] as $c) {
-        if (empty($c["id"])) {
-            continue;
+        // 1. Kartentypen aktualisieren
+        $stmtCard = $pdo->prepare("INSERT INTO snatch_game_card_types (id, emoji, name, count, points, start_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE emoji=VALUES(emoji), name=VALUES(name), count=VALUES(count), points=VALUES(points), start_id=VALUES(start_id)");
+
+        foreach ($_POST["cards"] ?? [] as $c) {
+            if (empty($c["id"])) {
+                continue;
+            }
+            $stmtCard->execute([
+                $c["id"],
+                $c["emoji"],
+                $c["name"],
+                (int) $c["count"],
+                (int) $c["points"],
+                (int) $c["startId"],
+            ]);
         }
-        $updatedData["cardTypes"][] = [
-            "id" => $c["id"],
-            "name" => $c["name"],
-            "count" => (int) $c["count"],
-            "points" => (int) $c["points"],
-            "startId" => (int) $c["startId"],
-            "emoji" => $c["emoji"],
-        ];
-    }
 
-    foreach ($_POST["groups"] ?? [] as $g) {
-        if (empty($g["id"])) {
-            continue;
+        // 2. Gruppen aktualisieren
+        $pdo->exec("DELETE FROM snatch_game_groups");
+        $stmtGroup = $pdo->prepare(
+            "INSERT INTO snatch_game_groups (id, cards) VALUES (?, ?)",
+        );
+        foreach ($_POST["groups"] ?? [] as $g) {
+            if (empty($g["id"])) {
+                continue;
+            }
+            $groupCardsArray = array_values(array_filter($g["cards"] ?? []));
+            $stmtGroup->execute([
+                $g["id"],
+                json_encode($groupCardsArray, JSON_UNESCAPED_UNICODE),
+            ]);
         }
-        $updatedData["groups"][] = [
-            "id" => $g["id"],
-            "cards" => array_values(array_filter($g["cards"] ?? [])),
-        ];
-    }
 
-    foreach ($_POST["combos"] ?? [] as $cb) {
-        if (empty($cb["name"])) {
-            continue;
+        // 3. Kombinationen aktualisieren
+        $pdo->exec("DELETE FROM snatch_game_combos");
+
+        $stmtCombo = $pdo->prepare(
+            "INSERT INTO snatch_game_combos (id, name, emoji, points, needs, cat) VALUES (?, ?, ?, ?, ?, ?)",
+        );
+        $comboIdCounter = 1;
+
+        foreach ($_POST["combos"] ?? [] as $cb) {
+            if (empty($cb["name"])) {
+                continue;
+            }
+
+            $needsArray = array_values(array_filter($cb["needs"] ?? []));
+            $needsString = json_encode($needsArray, JSON_UNESCAPED_UNICODE);
+
+            $stmtCombo->execute([
+                $comboIdCounter++,
+                $cb["name"],
+                $cb["emoji"],
+                (int) $cb["points"],
+                $needsString,
+                $cb["cat"],
+            ]);
         }
-        $updatedData["combos"][] = [
-            "emoji" => $cb["emoji"],
-            "name" => $cb["name"],
-            "points" => (int) $cb["points"],
-            "needs" => array_values(array_filter($cb["needs"] ?? [])),
-            "cat" => $cb["cat"],
-        ];
-    }
 
-    file_put_contents(
-        $file,
-        json_encode($updatedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-    );
-    $data = $updatedData;
-    $message = "✅ Datenbank erfolgreich aktualisiert!";
+        $pdo->commit();
+        $message =
+            "✅ Änderungen erfolgreich direkt in den SQL-Tabellen gespeichert!";
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $message = "❌ Fehler beim Speichern: " . $e->getMessage();
+    }
+}
+
+// --- DATEN AUS DEN ECHTEN SQL-TABELLEN LADEN ---
+
+// 1. Kartentypen holen (KORREKTUR: Sortiert nach start_id für das Modal!)
+$cardTypes = $pdo
+    ->query(
+        "SELECT id, emoji, name, count, points, start_id AS startId FROM snatch_game_card_types ORDER BY start_id ASC, id ASC",
+    )
+    ->fetchAll(PDO::FETCH_ASSOC);
+
+// 2. Gruppen holen
+$dbGroups = $pdo
+    ->query("SELECT id, cards FROM snatch_game_groups ORDER BY id ASC")
+    ->fetchAll(PDO::FETCH_ASSOC);
+$groups = [];
+foreach ($dbGroups as $g) {
+    $decoded = !empty($g["cards"]) ? json_decode($g["cards"], true) : [];
+    $g["cards"] = is_array($decoded) ? $decoded : [];
+    $groups[] = $g;
+}
+
+// 3. Kombinationen holen
+$dbCombos = $pdo
+    ->query(
+        "SELECT name, emoji, points, needs, cat FROM snatch_game_combos ORDER BY id ASC",
+    )
+    ->fetchAll(PDO::FETCH_ASSOC);
+$combos = [];
+foreach ($dbCombos as $cb) {
+    $decoded = !empty($cb["needs"]) ? json_decode($cb["needs"], true) : [];
+    $cb["needs"] = is_array($decoded) ? $decoded : [];
+    $combos[] = $cb;
+}
+
+// 4. Themes für das Dropdown laden
+$themesList = $pdo
+    ->query(
+        "SELECT theme_name, icon_combo AS headerIcon FROM snatch_themes ORDER BY theme_name ASC",
+    )
+    ->fetchAll(PDO::FETCH_ASSOC);
+
+// Hilfs-Arrays für getrennte Optionen im Picker übergeben
+$pickerCards = [];
+foreach ($cardTypes as $ct) {
+    $pickerCards[] = [
+        "id" => $ct["id"],
+        "name" => $ct["name"],
+        "emoji" => $ct["emoji"],
+        "type" => "card",
+    ];
+}
+$pickerGroups = [];
+foreach ($groups as $g) {
+    $pickerGroups[] = [
+        "id" => $g["id"],
+        "name" => "Gruppe: " . $g["id"],
+        "emoji" => "📁",
+        "type" => "group",
+    ];
 }
 ?>
 
@@ -128,26 +209,20 @@ if (isset($_POST["save"])) {
 <head>
     <meta charset="UTF-8">
     <title>Snatch Database Editor Pro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         :root {
             --bg: #050705; --panel: rgba(20, 25, 20, 0.7); --primary: #2cb24c;
             --accent: #a855f7; --text: #e2e8f0; --danger: #ef4444; --card-bg: rgba(255,255,255,0.05);
         }
-
         body { font-family: 'Signika', sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin-bottom: 100px; }
         .container { max-width: 1200px; margin: 0 auto; }
         .section { background: var(--panel); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.05); }
-
         h2 { color: var(--accent); display: flex; justify-content: space-between; align-items: center; margin-top: 0; }
-
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 10px; color: var(--text); opacity: 0.6; font-weight: 300; font-size: 0.8rem; }
         td { padding: 8px; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,0.03); }
-
         input { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px; border-radius: 8px; width: 100%; box-sizing: border-box; }
-
         .selection-container { display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; align-items: center; }
         .select-btn {
             background: var(--card-bg); border: 1px dashed rgba(255,255,255,0.2); color: var(--text);
@@ -156,55 +231,23 @@ if (isset($_POST["save"])) {
         }
         .select-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--primary); }
         .select-btn.filled { border-style: solid; border-color: var(--primary); background: rgba(44, 178, 76, 0.1); }
-
-        #selectionModal {
-            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); backdrop-filter: blur(5px);
-        }
-        .modal-content {
-            background: #1a1a1a; margin: 5% auto; padding: 25px; border-radius: 20px;
-            width: 80%; max-width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--accent);
-        }
-        .modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 20px; }
-        .modal-item {
-            background: #252525; padding: 10px; border-radius: 10px; cursor: pointer; text-align: center;
-            border: 1px solid transparent; transition: 0.2s;
-        }
+        #selectionModal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(5px); }
+        .modal-content { background: #1a1a1a; margin: 5% auto; padding: 25px; border-radius: 20px; width: 80%; max-width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--accent); }
+        .modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+        .modal-item { background: #252525; padding: 10px; border-radius: 10px; cursor: pointer; text-align: center; border: 1px solid transparent; transition: 0.2s; }
         .modal-item:hover { border-color: var(--primary); background: #303030; }
-        .modal-item.empty { border-color: var(--danger); color: var(--danger); }
-
+        .modal-item.empty { border-color: var(--danger); color: var(--danger); grid-column: 1 / -1; }
+        .modal-section-title { font-size: 0.9rem; color: var(--accent); margin-top: 25px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
         .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 10px; cursor: pointer; }
         .btn-del { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); padding: 8px; border-radius: 8px; cursor: pointer; }
-
         .save-bar { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; border: none; padding: 15px 50px; border-radius: 50px; font-weight: 600; cursor: pointer; box-shadow: 0 10px 40px rgba(0,0,0,0.5); z-index: 100; }
         .msg { background: rgba(44, 178, 76, 0.2); color: #fff; padding: 15px; border-radius: 15px; margin-bottom: 20px; text-align: center; border: 1px solid var(--primary); }
         .search-input { margin-bottom: 15px; font-size: 1.1rem; padding: 12px; }
-
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; appearance: textfield; }
-
-        /* Basis-Stil für dynamische Chips */
-.select-btn.filled {
-    border-style: solid;
-    border-width: 1px;
-    /* Die Hintergrundfarbe und Rahmenfarbe setzen wir per JavaScript/PHP direkt im Style-Attribut */
-}
-
-/* Markierung für den aktuell ausgewählten Wert im Modal */
-.modal-item.active {
-    border: 2px solid var(--primary);
-    background: rgba(44, 178, 76, 0.2);
-    box-shadow: 0 0 10px rgba(44, 178, 76, 0.3);
-}
-
-.sortable-ghost {
-    opacity: 0.4;
-    background: var(--accent) !important;
-}
-.drag-handle:hover {
-    color: var(--primary) !important;
-}
+        .modal-item.active { border: 2px solid var(--primary); background: rgba(44, 178, 76, 0.2); box-shadow: 0 0 10px rgba(44, 178, 76, 0.3); }
+        .sortable-ghost { opacity: 0.4; background: var(--accent) !important; }
+        .drag-handle:hover { color: var(--primary) !important; }
     </style>
 </head>
 <body>
@@ -220,22 +263,23 @@ if (isset($_POST["save"])) {
     } ?>
 
     <form method="POST" id="dbForm">
+        <!-- SEKTION 1: KARTEN-TYPEN -->
         <div class="section">
-            <h2>Karten-Typen <!-- <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button> --></h2>
+            <h2>Karten-Typen <button type="button" class="btn-add" onclick="addRow('cardsTable')">+ Neu</button></h2>
             <table id="cardsTable">
-                <thead><tr><th>ID</th><th>Emoji</th><th>Name</th><th>Anz.</th><th>Pkt.</th><th>StartId</th><!-- <th width="40"></th> --></tr></thead>
+                <thead><tr><th>ID (String)</th><th>Emoji</th><th>Name</th><th>Anz.</th><th>Pkt.</th><th>StartId</th><th width="40"></th></tr></thead>
                 <tbody>
-                    <?php foreach ($data["cardTypes"] as $idx => $ct): ?>
+                    <?php foreach ($cardTypes as $idx => $ct): ?>
                     <tr>
-                        <td><input type="text" name="cards[<?= $idx ?>][id]" value="<?= $ct[
-    "id"
-] ?>" style="width:70px; color:var(--primary); text-align:center;"></td>
-                        <td><input type="text" name="cards[<?= $idx ?>][emoji]" value="<?= $ct[
-    "emoji"
-] ?>" style="width:50px; text-align:center;"></td>
-                        <td><input type="text" name="cards[<?= $idx ?>][name]" value="<?= $ct[
-    "name"
-] ?>"></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][id]" value="<?= htmlspecialchars(
+    $ct["id"],
+) ?>" style="width:90px; color:var(--primary); text-align:center;"></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][emoji]" value="<?= htmlspecialchars(
+    $ct["emoji"],
+) ?>" style="width:50px; text-align:center;"></td>
+                        <td><input type="text" name="cards[<?= $idx ?>][name]" value="<?= htmlspecialchars(
+    $ct["name"],
+) ?>"></td>
                         <td><input type="number" name="cards[<?= $idx ?>][count]" value="<?= $ct[
     "count"
 ] ?>" style="width:60px;"></td>
@@ -245,42 +289,47 @@ if (isset($_POST["save"])) {
                         <td><input type="number" name="cards[<?= $idx ?>][startId]" value="<?= $ct[
     "startId"
 ] ?>" style="width:70px;"></td>
-                        <!-- <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td> -->
+                        <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
 
+        <!-- SEKTION 2: KARTEN-GRUPPEN -->
         <div class="section">
-            <h2>Gruppen & Aliase <button type="button" class="btn-add" onclick="addRow('groupsTable')">+ Neu</button></h2>
+            <h2>Karten-Gruppen <button type="button" class="btn-add" onclick="addRow('groupsTable')">+ Neu</button></h2>
             <table id="groupsTable">
-                <thead><tr><th width="200">Gruppen-ID</th><th>Karten in Gruppe (Max 12)</th><th width="40"></th></tr></thead>
+                <thead><tr><th>Gruppen ID (z.B. ANY_LEG)</th><th>Enthaltene Karten (Max 12)</th><th width="40"></th></tr></thead>
                 <tbody>
-                    <?php foreach ($data["groups"] as $idx => $g): ?>
+                    <?php foreach ($groups as $idx => $g): ?>
                     <tr>
-                        <td><input type="text" name="groups[<?= $idx ?>][id]" value="<?= $g[
-    "id"
-] ?>" style="color:var(--accent)"></td>
+                        <td><input type="text" name="groups[<?= $idx ?>][id]" value="<?= htmlspecialchars(
+    $g["id"],
+) ?>" style="width:150px; color:var(--accent); font-weight:bold;"></td>
                         <td>
                             <div class="selection-container" data-type="group" data-row="<?= $idx ?>" data-max="12">
                                 <?php
                                 foreach ($g["cards"] ?? [] as $val):
 
-                                    $displayEmoji = "";
-                                    foreach ($data["cardTypes"] as $ct) {
+                                    $displayEmoji = "🃏";
+                                    foreach ($cardTypes as $ct) {
                                         if ($ct["id"] == $val) {
                                             $displayEmoji = $ct["emoji"];
                                             break;
                                         }
                                     }
                                     ?>
-             <button type="button" class="select-btn filled" <?= getDynamicStyle(
-                 $val,
-             ) ?> onclick="openPicker(this)">
-    <span class="label"><?= $displayEmoji ?> <?= $val ?></span>
-    <input type="hidden" name="groups[<?= $idx ?>][cards][]" value="<?= $val ?>">
-</button>
+                                    <button type="button" class="select-btn filled" <?= getDynamicStyle(
+                                        $val,
+                                    ) ?> onclick="openPicker(this)">
+                                        <span class="label"><?= $displayEmoji ?> <?= htmlspecialchars(
+     $val,
+ ) ?></span>
+                                        <input type="hidden" name="groups[<?= $idx ?>][cards][]" value="<?= htmlspecialchars(
+    $val,
+) ?>">
+                                    </button>
                                 <?php
                                 endforeach;
                                 if (count($g["cards"] ?? []) < 12): ?>
@@ -299,21 +348,21 @@ if (isset($_POST["save"])) {
             </table>
         </div>
 
+        <!-- SEKTION 3: KOMBINATIONEN -->
         <div class="section">
             <h2>Kombinationen <button type="button" class="btn-add" onclick="addRow('combosTable')">+ Neu</button></h2>
             <table id="combosTable">
-                <thead><tr><th width="30">↕</th><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Max 5)</th><th>Kategorie-Theme</th><th width="40"></th></tr></thead>
+                <thead><tr><th width="30">↕</th><th>Emoji</th><th>Name</th><th>Pkt.</th><th>Bedarf (Karten / Gruppen - Max 5)</th><th>Kategorie-Theme</th><th width="40"></th></tr></thead>
                 <tbody>
-                    <?php foreach ($data["combos"] as $idx => $cb): ?>
-
+                    <?php foreach ($combos as $idx => $cb): ?>
                     <tr class="sortable-row">
                         <td class="drag-handle" style="cursor: grab; color: var(--accent); text-align: center;">☰</td>
-                        <td><input type="text" name="combos[<?= $idx ?>][emoji]" value="<?= $cb[
-    "emoji"
-] ?>" style="width:70px; text-align:center;"></td>
-                        <td><input type="text" name="combos[<?= $idx ?>][name]" value="<?= $cb[
-    "name"
-] ?>"></td>
+                        <td><input type="text" name="combos[<?= $idx ?>][emoji]" value="<?= htmlspecialchars(
+    $cb["emoji"],
+) ?>" style="width:70px; text-align:center;"></td>
+                        <td><input type="text" name="combos[<?= $idx ?>][name]" value="<?= htmlspecialchars(
+    $cb["name"],
+) ?>"></td>
                         <td><input type="number" name="combos[<?= $idx ?>][points]" value="<?= $cb[
     "points"
 ] ?>" style="width:60px;"></td>
@@ -322,23 +371,30 @@ if (isset($_POST["save"])) {
                                 <?php
                                 foreach ($cb["needs"] ?? [] as $val):
 
-                                    $displayEmoji = "";
-                                    foreach ($data["cardTypes"] as $ct) {
+                                    $displayEmoji = "📁";
+                                    foreach ($cardTypes as $ct) {
                                         if ($ct["id"] == $val) {
                                             $displayEmoji = $ct["emoji"];
                                             break;
                                         }
                                     }
-                                    if (empty($displayEmoji)) {
-                                        $displayEmoji = "📁";
+                                    foreach ($groups as $g) {
+                                        if ($g["id"] == $val) {
+                                            $displayEmoji = "📁";
+                                            break;
+                                        }
                                     }
                                     ?>
-<button type="button" class="select-btn filled" <?= getDynamicStyle(
+                                    <button type="button" class="select-btn filled" <?= getDynamicStyle(
+                                        $val,
+                                    ) ?> onclick="openPicker(this)">
+                                        <span class="label"><?= $displayEmoji ?> <?= htmlspecialchars(
+     $val,
+ ) ?></span>
+                                        <input type="hidden" name="combos[<?= $idx ?>][needs][]" value="<?= htmlspecialchars(
     $val,
-) ?> onclick="openPicker(this)">
-    <span class="label"><?= $displayEmoji ?: "📁" ?> <?= $val ?></span>
-    <input type="hidden" name="combos[<?= $idx ?>][needs][]" value="<?= $val ?>">
-</button>
+) ?>">
+                                    </button>
                                 <?php
                                 endforeach;
                                 if (count($cb["needs"] ?? []) < 5): ?>
@@ -351,28 +407,22 @@ if (isset($_POST["save"])) {
                             </div>
                         </td>
                         <td>
-    <select name="combos[<?= $idx ?>][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
-        <option value="">-- Kein Theme --</option>
-        <?php if (!empty($themesData)) {
-            foreach ($themesData as $themeKey => $themeValues) {
-
-                // Wir nutzen den Key (z.B. "Gold") als ID
-                // Und schauen nach einem Emoji (falls vorhanden, sonst Standard)
-                $name = $themeKey;
-                $emoji = $themeValues["headerIcon"] ?? "✨";
-                ?>
-                <option value="<?= htmlspecialchars($themeKey) ?>" <?= isset(
-    $cb["cat"],
-) && $cb["cat"] == $themeKey
+                            <select name="combos[<?= $idx ?>][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                                <option value="">-- Kein Theme --</option>
+                                <?php foreach ($themesList as $t): ?>
+                                    <option value="<?= htmlspecialchars(
+                                        $t["theme_name"],
+                                    ) ?>" <?= isset($cb["cat"]) &&
+$cb["cat"] == $t["theme_name"]
     ? "selected"
     : "" ?>>
-                    <?= $name ?> <?= $emoji ?> <!-- Name nach vorne gestellt -->
-                </option>
-                <?php
-            }
-        } ?>
-    </select>
-</td>
+                                        <?= htmlspecialchars(
+                                            $t["theme_name"],
+                                        ) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
                         <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>
                     </tr>
                     <?php endforeach; ?>
@@ -386,10 +436,18 @@ if (isset($_POST["save"])) {
 
 <div id="selectionModal">
     <div class="modal-content">
-        <h3 id="modalTitle">Karte oder Gruppe wählen</h3>
+        <h3 id="modalTitle">Auswahl treffen</h3>
         <input type="text" id="modalSearch" class="search-input" placeholder="Suchen..." oninput="filterModal()">
-        <div class="modal-grid" id="modalGrid"></div>
-        <div style="margin-top: 20px; text-align: right;">
+
+        <div id="modalClearContainer"></div>
+
+        <div class="modal-section-title" id="cardsTitle">🃏 Karten (Nach Start-ID sortiert)</div>
+        <div class="modal-grid" id="modalCardsGrid"></div>
+
+        <div class="modal-section-title" id="groupsTitleSection" style="color: var(--accent);">📁 Gruppen / Aliase</div>
+        <div class="modal-grid" id="modalGroupsGrid"></div>
+
+        <div style="margin-top: 30px; text-align: right;">
             <button type="button" class="btn-add" style="background:#444" onclick="closePicker()">Abbrechen</button>
         </div>
     </div>
@@ -397,26 +455,12 @@ if (isset($_POST["save"])) {
 
 <script>
 let currentTargetBtn = null;
-const allCardOptions = <?= json_encode($data["cardTypes"]) ?>;
-const allGroupOptions = <?= json_encode(array_column($data["groups"], "id")) ?>;
+const pickerCards = <?= json_encode($pickerCards) ?>;
+const pickerGroups = <?= json_encode($pickerGroups) ?>;
+const availableThemes = <?= json_encode($themesList) ?>;
 
-// Sortier-Funktion initialisieren
 function initSortable() {
     const el = document.querySelector('#combosTable tbody');
-    Sortable.create(el, {
-        handle: '.drag-handle', // Nur am ☰ Icon ziehbar
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        onEnd: function() {
-            console.log("Reihenfolge geändert");
-            // Optional: Hier könnte man einen "Ungespeicherte Änderungen" Hinweis einblenden
-        }
-    });
-}
-
-// Auch für Gruppen-Tabelle (optional)
-function initSortableGroups() {
-    const el = document.querySelector('#groupsTable tbody');
     Sortable.create(el, {
         handle: '.drag-handle',
         animation: 150,
@@ -424,22 +468,18 @@ function initSortableGroups() {
     });
 }
 
-// Initialisierung beim Laden
 document.addEventListener('DOMContentLoaded', () => {
     initSortable();
-    // Falls du auch Gruppen sortieren willst, füge dort auch den Handle ein und aktiviere dies:
-    // initSortableGroups();
 });
 
 function addRow(tableId) {
     const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];
     const idx = Date.now();
-    const allThemes = <?= json_encode($themesData) ?>;
     let row = document.createElement('tr');
 
     if (tableId === 'cardsTable') {
         row.innerHTML = `
-            <td><input type="text" name="cards[${idx}][id]" style="width:70px; color:var(--primary); text-align:center;"></td>
+            <td><input type="text" name="cards[${idx}][id]" style="width:90px; color:var(--primary); text-align:center;"></td>
             <td><input type="text" name="cards[${idx}][emoji]" style="width:50px; text-align:center;"></td>
             <td><input type="text" name="cards[${idx}][name]"></td>
             <td><input type="number" name="cards[${idx}][count]" value="0" style="width:60px;"></td>
@@ -448,7 +488,7 @@ function addRow(tableId) {
             <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
     } else if (tableId === 'groupsTable') {
         row.innerHTML = `
-            <td><input type="text" name="groups[${idx}][id]" style="color:var(--accent)"></td>
+            <td><input type="text" name="groups[${idx}][id]" style="width:150px; color:var(--accent); font-weight:bold;"></td>
             <td><div class="selection-container" data-type="group" data-row="${idx}" data-max="12">
                 <button type="button" class="select-btn" onclick="openPicker(this)">
                     <span class="label">+ Wählen</span>
@@ -457,34 +497,29 @@ function addRow(tableId) {
             </div></td>
             <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
     } else if (tableId === 'combosTable') {
-    let themeOptions = '<option value="">-- Kein Theme --</option>';
+        let themeOptions = '<option value="">-- Kein Theme --</option>';
+        availableThemes.forEach(t => {
+            themeOptions += `<option value="${t.theme_name}">${t.theme_name}</option>';`;
+        });
 
-    // Da themesData ein Objekt ist, nutzen wir Object.entries
-if (allThemes) {
-    Object.entries(allThemes).forEach(([key, value]) => {
-        let emoji = value.headerIcon || '✨';
-        // Hier auch: Name vor das Emoji stellen
-        themeOptions += `<option value="${key}">${key} ${emoji}</option>`;
-    });
-}
-
-    row.innerHTML = `
-        <td><input type="text" name="combos[${idx}][emoji]" style="width:50px; text-align:center;"></td>
-        <td><input type="text" name="combos[${idx}][name]"></td>
-        <td><input type="number" name="combos[${idx}][points]" value="0" style="width:60px;"></td>
-        <td><div class="selection-container" data-type="combo" data-row="${idx}" data-max="5">
-            <button type="button" class="select-btn" onclick="openPicker(this)">
-                <span class="label">+ Wählen</span>
-                <input type="hidden" name="combos[${idx}][needs][]" value="">
-            </button>
-        </div></td>
-        <td>
-            <select name="combos[${idx}][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
-                ${themeOptions}
-            </select>
-        </td>
-        <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
-}
+        row.innerHTML = `
+            <td class="drag-handle" style="cursor: grab; color: var(--accent); text-align: center;">☰</td>
+            <td><input type="text" name="combos[${idx}][emoji]" style="width:70px; text-align:center;"></td>
+            <td><input type="text" name="combos[${idx}][name]"></td>
+            <td><input type="number" name="combos[${idx}][points]" value="0" style="width:60px;"></td>
+            <td><div class="selection-container" data-type="combo" data-row="${idx}" data-max="5">
+                <button type="button" class="select-btn" onclick="openPicker(this)">
+                    <span class="label">+ Wählen</span>
+                    <input type="hidden" name="combos[${idx}][needs][]" value="">
+                </button>
+            </div></td>
+            <td>
+                <select name="combos[${idx}][cat]" style="width: 100%; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                    ${themeOptions}
+                </select>
+            </td>
+            <td><button type="button" class="btn-del" onclick="removeRow(this)">✕</button></td>`;
+    }
     table.appendChild(row);
 }
 
@@ -494,36 +529,52 @@ function removeRow(btn) {
 
 function openPicker(btn) {
     currentTargetBtn = btn;
+    const container = btn.closest('.selection-container');
+    const modeType = container.dataset.type; // 'group' oder 'combo'
     const modal = document.getElementById('selectionModal');
-    const grid = document.getElementById('modalGrid');
-    const type = btn.closest('.selection-container').dataset.type;
+    const clearContainer = document.getElementById('modalClearContainer');
+    const cardsGrid = document.getElementById('modalCardsGrid');
+    const groupsGrid = document.getElementById('modalGroupsGrid');
+    const groupsTitle = document.getElementById('groupsTitleSection');
     const currentValue = btn.querySelector('input').value;
 
-    grid.innerHTML = '';
+    clearContainer.innerHTML = '';
+    cardsGrid.innerHTML = '';
+    groupsGrid.innerHTML = '';
 
+    // Lösch-Button oben anheften
     const emptyDiv = document.createElement('div');
     emptyDiv.className = 'modal-item empty' + (currentValue === '' ? ' active' : '');
     emptyDiv.onclick = () => selectOption('');
     emptyDiv.innerHTML = '❌ LEEREN / LÖSCHEN';
-    grid.appendChild(emptyDiv);
+    clearContainer.appendChild(emptyDiv);
 
-    allCardOptions.forEach(c => {
+    // 1. Karten hinzufügen (Sind per PHP bereits nach startId sortiert)
+    pickerCards.forEach(c => {
         const item = document.createElement('div');
         item.className = 'modal-item' + (currentValue === c.id ? ' active' : '');
-        item.onclick = () => selectOption(c.id, c.emoji);
+        item.onclick = () => selectOption(c.id);
         item.innerHTML = `${c.emoji} ${c.id} <br><small>${c.name}</small>`;
-        grid.appendChild(item);
+        cardsGrid.appendChild(item);
     });
 
-    if(type === 'combo') {
-        allGroupOptions.forEach(g => {
+    // 2. Gruppen hinzufügen (NUR wenn wir im Combo-Modus sind!)
+    if (modeType === 'combo') {
+        groupsTitle.style.display = 'block';
+        groupsGrid.style.display = 'grid';
+
+        pickerGroups.forEach(g => {
             const item = document.createElement('div');
             item.style.borderColor = 'var(--accent)';
-            item.className = 'modal-item' + (currentValue === g ? ' active' : '');
-            item.onclick = () => selectOption(g, '📁');
-            item.innerHTML = `📁 GRUPPE: ${g}`;
-            grid.appendChild(item);
+            item.className = 'modal-item' + (currentValue === g.id ? ' active' : '');
+            item.onclick = () => selectOption(g.id);
+            item.innerHTML = `${g.emoji} ${g.id}`;
+            groupsGrid.appendChild(item);
         });
+    } else {
+        // Gruppen ausblenden, wenn Karten für eine Gruppe ausgewählt werden
+        groupsTitle.style.display = 'none';
+        groupsGrid.style.display = 'none';
     }
 
     modal.style.display = 'block';
@@ -533,7 +584,7 @@ function openPicker(btn) {
     searchInput.focus();
 
     setTimeout(() => {
-        const activeItem = grid.querySelector('.modal-item.active');
+        const activeItem = document.querySelector('.modal-item.active');
         if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 10);
 }
@@ -544,12 +595,12 @@ function closePicker() {
 
 function filterModal() {
     const q = document.getElementById('modalSearch').value.toLowerCase();
-    document.querySelectorAll('.modal-item').forEach(item => {
+    document.querySelectorAll('.modal-grid .modal-item').forEach(item => {
         item.style.display = item.innerText.toLowerCase().includes(q) ? 'block' : 'none';
     });
 }
 
-function selectOption(val, emoji = '') {
+function selectOption(val) {
     const btn = currentTargetBtn;
     const container = btn.closest('.selection-container');
     const max = parseInt(container.dataset.max);
@@ -565,11 +616,12 @@ function refreshSelectionFields(container, max) {
     container.innerHTML = '';
     const type = container.dataset.type;
     const rowIdx = container.dataset.row;
-    const fieldName = type === 'group' ? 'cards' : 'needs';
+    const fieldName = (type === 'group') ? 'cards' : 'needs';
 
     values.forEach(v => {
-        const cardDoc = allCardOptions.find(c => c.id == v);
-        const emoji = cardDoc ? cardDoc.emoji : (type === 'combo' ? '📁' : '');
+        const foundCard = pickerCards.find(o => o.id == v);
+        const foundGroup = pickerGroups.find(o => o.id == v);
+        const emoji = foundCard ? foundCard.emoji : (foundGroup ? '📁' : '🃏');
         addSelectionButton(container, type, rowIdx, fieldName, v, emoji);
     });
 
@@ -606,6 +658,5 @@ window.onclick = function(event) {
     if (event.target == document.getElementById('selectionModal')) closePicker();
 }
 </script>
-
 </body>
 </html>

@@ -1,48 +1,66 @@
 <?php
-$file = 'game_data.json';
-$data = json_decode(file_get_contents($file), true);
+/**
+ * Shine-Snatch Regelwerk & Kartendatenbank (SQL-Version)
+ */
+require_once "db.php";
+$pdo = getDatabaseConnection();
 
-// Hilfs-Array für die Anzeige der Namen (ID -> Name)
+// 1. Kartentypen aus der Datenbank laden (nach start_id sortiert)
+$stmtCards = $pdo->query(
+    "SELECT id, emoji, name, count, points, start_id AS startId FROM snatch_game_card_types ORDER BY start_id ASC",
+);
+$cardTypes = $stmtCards->fetchAll(PDO::FETCH_ASSOC);
+
+// Hilfs-Array für die Anzeige der Namen (ID -> Name) im PHP/JS-Teil generieren
 $idToName = [];
-foreach ($data['cardTypes'] as $ct) {
-    $idToName[$ct['id']] = $ct['name'];
+foreach ($cardTypes as $ct) {
+    $idToName[strtoupper(trim($ct["id"]))] = $ct["name"];
 }
 
-// Karten nach startId sortieren (Aufsteigend)
-usort($data['cardTypes'], function($a, $b) {
-    return $a['startId'] <=> $b['startId'];
-});
-?>
+// 2. Kombinationen/Synergien aus der Datenbank laden
+$stmtCombos = $pdo->query(
+    "SELECT emoji, name, points, needs, cat FROM snatch_game_combos ORDER BY id ASC",
+);
+$dbCombos = $stmtCombos->fetchAll(PDO::FETCH_ASSOC);
 
+// 'needs' von SQL-JSON-Array in ein echtes PHP-Array dekodieren
+$combos = [];
+foreach ($dbCombos as $cb) {
+    $decodedNeeds = !empty($cb["needs"]) ? json_decode($cb["needs"], true) : [];
+    $cb["needs"] = is_array($decodedNeeds) ? $decodedNeeds : [];
+    $combos[] = $cb;
+}
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">   
+    <meta charset="utf-8">
     <title>Shine-Snatch Regelwerk (Dark Mode)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         /* Dark Theme Basis */
-        body { 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            padding: 30px; 
-            line-height: 1.6; 
-            color: #e0e0e0; 
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 30px;
+            line-height: 1.6;
+            color: #e0e0e0;
             background-color: #121212; /* Sehr dunkles Grau */
         }
 
-        .container { 
-            max-width: 900px; 
-            margin: auto; 
+        .container {
+            max-width: 900px;
+            margin: auto;
             background: #1e1e1e; /* Etwas helleres Grau für den Content */
-            padding: 30px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
             border: 1px solid #333;
         }
-        
-        h1, h2 { 
-            color: #ffffff; 
-            border-bottom: 2px solid #333; 
-            padding-bottom: 10px; 
+
+        h1, h2 {
+            color: #ffffff;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
             margin-top: 30px;
         }
 
@@ -51,23 +69,23 @@ usort($data['cardTypes'], function($a, $b) {
         p { margin-bottom: 15px; color: #b0b0b0; }
 
         /* Tabellen Styling */
-        table { 
-            border-collapse: collapse; 
-            width: 100%; 
-            margin: 20px 0; 
-            font-size: 0.95em; 
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            font-size: 0.95em;
             background-color: #252525;
         }
 
-        th, td { 
-            border: 1px solid #444; 
-            padding: 12px; 
-            text-align: left; 
+        th, td {
+            border: 1px solid #444;
+            padding: 12px;
+            text-align: left;
         }
 
-        th { 
-            background-color: #333; 
-            color: #bb86fc; 
+        th {
+            background-color: #333;
+            color: #bb86fc;
             text-transform: uppercase;
             font-size: 0.85em;
             letter-spacing: 1px;
@@ -79,16 +97,16 @@ usort($data['cardTypes'], function($a, $b) {
         .bg-orange { background: #e67e22; color: #ffffff; font-weight: bold; }
         .bg-dark-orange { background: #a84310; color: #ffffff; font-weight: bold; }
         .bg-red    { background: #c62828; color: #ffffff; font-weight: bold; }
-        
-        .total-row { 
-            background: #2c2c2c; 
-            font-weight: bold; 
+
+        .total-row {
+            background: #2c2c2c;
+            font-weight: bold;
             color: #ffffff;
         }
 
-        .highlight { 
-            color: #cf6679; 
-            font-weight: bold; 
+        .highlight {
+            color: #cf6679;
+            font-weight: bold;
         }
 
         strong { color: #ffffff; }
@@ -261,17 +279,13 @@ th::after {
 <body>
 <div class="container">
     <h1>🌌 Shine-Snatch</h1>
-        <div class="tagline">Das Gefüge der Sphären</div>
-    </div>
-
+    <div class="tagline">Das Gefüge der Sphären</div>
+</div>
     <section>
         <h2>1. Die Geschichte</h2>
         <p>
-            In der Welt von <strong>Shine-Snatch</strong> bist du ein "Sphären-Wanderer". Dein Ziel ist es, aus dem Chaos des Äthers die mächtigsten Wesen, Orte und Artefakte zu manifestieren. 
+            In der Welt von <strong>Shine-Snatch</strong> bist du ein "Sphären-Wanderer". Dein Ziel ist es, aus dem Chaos des Äthers die mächtigsten Wesen, Orte und Artefakte zu manifestieren.
             Doch eine einzelne Karte ist nur ein Funken im Dunkeln. Erst wenn du Synergien zwischen den Elementen erkennst und Kombinationen bildest, entfesselst du das volle Potenzial deines Decks.
-        </p>
-        <p>
-            Wirst du eine unbezwingbare Horde anführen, ein heiliges Imperium errichten oder die Geheimnisse der arkanen Wissenschaft entschlüsseln?
         </p>
     </section>
 
@@ -293,7 +307,7 @@ th::after {
 
     <section>
         <h2>1.3 📜 Spielablauf & Wertung</h2>
-        
+
         <div class="phase">
             <div class="phase-number">A</div>
             <div class="phase-content">
@@ -314,48 +328,13 @@ th::after {
             <div class="phase-number">C</div>
             <div class="phase-content">
                 <strong>Die Synergie-Phase</strong>
-                Das System berechnet automatisch die optimale Wertung deiner Kombinationen. 
+                Das System berechnet automatisch die optimale Wertung deiner Kombinationen.
                 <em>Wichtig: Jede Karte kann nur für EINE Kombination verwendet werden.</em>
             </div>
         </div>
     </section>
 
-    <section>
-        <div class="info-box">
-            <h3>💡 Die Gruppen-Regel</h3>
-            <p>
-                Einige Kombinationen verlangen keine spezifische Karte, sondern eine <strong>Gruppe</strong> (z. B. KRONE oder ABENTEURER). 
-            </p>
-        </div>
-    </section>
-
-    
-        <h2>2. Gruppen-Definitionen</h2>
-    <p><small>Diese Gruppen zählen in Kombinationen als Platzhalter für die enthaltenen Karten.</small></p>
-    <table>
-        <thead>
-            <tr>
-                <th>Gruppen-ID</th>
-                <th>Enthaltene Karten</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($data['groups'] as $g): ?>
-            <tr>
-                <td style="color: var(--accent); font-weight: bold;"><?= $g['id'] ?></td>
-                <td>
-                    <?php 
-                    $memberNames = array_map(function($id) use ($idToName) {
-                        return $idToName[$id] ?? $id;
-                    }, $g['cards']);
-                    echo implode(", ", $memberNames);
-                    ?>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-    <h2>3. Kartenübersicht <span style="font-size: 0.5em; opacity: 0.6; font-weight: normal; margin-left: 10px; vertical-align: middle;">(Zeile anklicken für Filterauswahl)</span></h2>
+    <h2>2. Kartenübersicht <span style="font-size: 0.5em; opacity: 0.6; font-weight: normal; margin-left: 10px; vertical-align: middle;">(Zeile anklicken für Filterauswahl)</span></h2>
     <table>
         <thead>
             <tr>
@@ -366,40 +345,43 @@ th::after {
             </tr>
         </thead>
         <tbody>
-            <?php 
-            $totalCards = 0;
-            foreach ($data['cardTypes'] as $ct): 
-                $totalCards += $ct['count'];
-                $rangeEnd = $ct['startId'] + $ct['count'] - 1;
-                
+            <?php foreach ($cardTypes as $ct):
+
+                $rangeEnd = $ct["startId"] + $ct["count"] - 1;
+
                 // Farbcodes basierend auf Punkten
                 $bgClass = "bg-red";
-                if ($ct['points'] >= 30) $bgClass = "bg-green";
-                elseif ($ct['points'] >= 20) $bgClass = "bg-yellow";
-                elseif ($ct['points'] >= 15) $bgClass = "bg-orange";
-                elseif ($ct['points'] >= 10) $bgClass = "bg-dark-orange";
-            ?>
-            <tr class="card-row" data-id="<?= $ct['id'] ?>" style="cursor: pointer;">
-                <td><?= $ct['emoji'] ?> <?= $ct['name'] ?></td>
-                <td><?= $ct['count'] ?></td>
-                <td><strong><?= $ct['startId'] ?> - <?= $rangeEnd ?></strong></td>
-                <td class="<?= $bgClass ?>"><?= $ct['points'] ?></td>
+                if ($ct["points"] >= 30) {
+                    $bgClass = "bg-green";
+                } elseif ($ct["points"] >= 20) {
+                    $bgClass = "bg-yellow";
+                } elseif ($ct["points"] >= 15) {
+                    $bgClass = "bg-orange";
+                } elseif ($ct["points"] >= 10) {
+                    $bgClass = "bg-dark-orange";
+                }
+                ?>
+            <tr class="card-row" data-id="<?= htmlspecialchars(
+                $ct["id"],
+            ) ?>" style="cursor: pointer;">
+                <td><?= htmlspecialchars($ct["emoji"]) ?> <?= htmlspecialchars(
+     $ct["name"],
+ ) ?> (<code><?= htmlspecialchars($ct["id"]) ?></code>)</td>
+                <td><?= (int) $ct["count"] ?></td>
+                <td><strong><?= (int) $ct[
+                    "startId"
+                ] ?> - <?= (int) $rangeEnd ?></strong></td>
+                <td class="<?= $bgClass ?>"><?= (int) $ct["points"] ?></td>
             </tr>
-            <?php endforeach; ?>
+            <?php
+            endforeach; ?>
         </tbody>
     </table>
 
+    <h2>3. Kombinationen (Siegpunkte)</h2>
+    <button id="reset-filter" class="btn-reset">Auswahl zurücksetzen</button>
+    <div id="filter-display" style="margin-bottom: 15px; min-height: 30px;"></div>
 
-
-       
-
-    <h2>4. Kombinationen (Siegpunkte)</h2>
-    <button id="reset-filter" class="btn-reset">
-    Auswahl zurücksetzen
-</button>
-        <div id="filter-display" style="margin-bottom: 15px; min-height: 30px;">
-
-    </div>
     <table>
         <thead>
             <tr>
@@ -410,48 +392,56 @@ th::after {
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($data['combos'] as $cb): 
-                $readableNeeds = array_map(function($id) use ($idToName, $data) {
-                    // Prüfen ob es eine Gruppe ist
-                    foreach($data['groups'] as $g) {
-                        if($g['id'] === $id) return "<b>Gruppe: " . $id . "</b>";
-                    }
-                    return $idToName[$id] ?? $id;
-                }, $cb['needs']);
-                
-                $counts = array_count_values($readableNeeds);
+            <?php foreach ($combos as $cb):
+
                 $needsString = [];
-                foreach ($counts as $name => $count) {
-                    $needsString[] = ($count > 1 ? $count . "x " : "") . $name;
+                // Zähle Vorkommen der IDs im Needs-Array
+                $counts = array_count_values($cb["needs"]);
+                foreach ($counts as $id => $count) {
+                    $upperId = strtoupper(trim($id));
+                    // Schauen, ob wir einen echten Namen zur ID haben
+                    $displayName = isset($idToName[$upperId])
+                        ? $idToName[$upperId]
+                        : "<b>Typ: " . htmlspecialchars($id) . "</b>";
+                    $needsString[] =
+                        ($count > 1 ? $count . "x " : "") . $displayName;
                 }
-            ?>
-            <tr class="combo-row" data-needs="<?= implode(',', $cb['needs']) ?>">
-                <td><?= $cb['emoji'] ?> <?= $cb['name'] ?></td>
+                ?>
+            <tr class="combo-row" data-needs="<?= htmlspecialchars(
+                implode(",", $cb["needs"]),
+            ) ?>">
+                <td><?= htmlspecialchars(
+                    $cb["emoji"] ?: "✨",
+                ) ?> <?= htmlspecialchars($cb["name"]) ?></td>
                 <td style="font-size: 0.85em; color: #cbd5e1;">
                     <?= implode(", ", $needsString) ?>
                 </td>
-                <td style="font-weight: bold; color: #46d366;"><?= $cb['points'] ?></td>
-                <td><small><?= $cb['cat'] ?></small></td>
+                <td style="font-weight: bold; color: #46d366;"><?= (int) $cb[
+                    "points"
+                ] ?></td>
+                <td><small><?= htmlspecialchars($cb["cat"]) ?></small></td>
             </tr>
-            <?php endforeach; ?>
+            <?php
+            endforeach; ?>
         </tbody>
     </table>
-</div>
+
+
 <script>
-// Globales Mapping für die Gruppen (aus PHP)
-const groupMapping = <?= json_encode($data['groups']) ?>;
+// JSON-Daten nativ bereitstellen
+const cardTypes = <?= json_encode($cardTypes) ?>;
+const combos = <?= json_encode($combos) ?>;
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Elemente referenzieren
     const cardRows = document.querySelectorAll('.card-row');
     const comboRows = document.querySelectorAll('.combo-row');
     const resetButton = document.getElementById('reset-filter');
     const filterDisplay = document.getElementById('filter-display');
     const thElements = document.querySelectorAll('th');
-    
+
     let selectedIds = new Set();
 
-    // --- SORTIER FUNKTION (Dein Original) ---
+    // --- SORTIER FUNKTION ---
     thElements.forEach(th => {
         th.addEventListener('click', () => {
             const table = th.closest('table');
@@ -472,8 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     let cleanA = valA.replace(/^[^a-zA-Z0-9]+/, '').toLowerCase();
                     let cleanB = valB.replace(/^[^a-zA-Z0-9]+/, '').toLowerCase();
-                    if (cleanA === "") cleanA = valA;
-                    if (cleanB === "") cleanB = valB;
                     return isAscending ? cleanB.localeCompare(cleanA) : cleanA.localeCompare(cleanB);
                 }
             });
@@ -485,11 +473,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- FILTER FUNKTION (Mit neuer Highlight-Logik) ---
+    // --- FILTER FUNKTION ---
     function updateComboFilter() {
         if (!filterDisplay || !resetButton) return;
 
-        // Reset: Alle "Möglich"-Klassen entfernen
         cardRows.forEach(row => row.classList.remove('possible-match'));
 
         if (selectedIds.size === 0) {
@@ -502,57 +489,43 @@ document.addEventListener('DOMContentLoaded', () => {
         resetButton.style.display = 'inline-block';
 
         let filterNames = [];
-        let possiblePartnerIds = new Set(); // Hier sammeln wir IDs, die Combos vervollständigen könnten
+        let possiblePartnerIds = new Set();
 
-        // Combo Zeilen filtern
         comboRows.forEach(row => {
-            const needs = row.dataset.needs.split(',');
+            // IDs im data-attribute splitten und vereinheitlichen
+            const needs = row.dataset.needs.split(',').map(id => id.toUpperCase().trim());
             let allSelectedAreIncluded = true;
 
             selectedIds.forEach(selectedId => {
-                let found = needs.includes(selectedId);
-                if (!found) {
-                    groupMapping.forEach(group => {
-                        if (group.cards.includes(selectedId) && needs.includes(group.id)) {
-                            found = true;
-                        }
-                    });
+                if (!needs.includes(selectedId.toUpperCase().trim())) {
+                    allSelectedAreIncluded = false;
                 }
-                if (!found) allSelectedAreIncluded = false;
             });
 
             if (allSelectedAreIncluded) {
                 row.classList.remove('hidden');
-                // NEU: Wenn Combo passt, merke dir alle benötigten Karten dieser Combo
-                needs.forEach(reqId => {
-                    const group = groupMapping.find(g => g.id === reqId);
-                    if (group) {
-                        group.cards.forEach(cId => possiblePartnerIds.add(cId));
-                    } else {
-                        possiblePartnerIds.add(reqId);
-                    }
-                });
+                needs.forEach(reqId => possiblePartnerIds.add(reqId));
             } else {
                 row.classList.add('hidden');
             }
         });
 
-        // Partner-Karten in der Übersicht markieren
+        // Partner-Karten hervorheben
         cardRows.forEach(row => {
-            const rowId = row.dataset.id;
-            if (!selectedIds.has(rowId) && possiblePartnerIds.has(rowId)) {
+            const rowId = row.dataset.id.toUpperCase().trim();
+            if (!selectedIds.has(row.dataset.id) && possiblePartnerIds.has(rowId)) {
                 row.classList.add('possible-match');
             }
         });
 
-        // Tags anzeigen
+        // Aktivierte Filter-Tags rendern
         selectedIds.forEach(id => {
             const row = document.querySelector(`.card-row[data-id="${id}"]`);
             if (row) filterNames.push(row.cells[0].innerText.trim());
         });
 
-        filterDisplay.innerHTML = '<span class="filter-label">Filter aktiv für:</span>' + 
-            filterNames.map(name => `<span class="filter-tag" style="background:#bb86fc; color:#000;">${name}</span>`).join('');
+        filterDisplay.innerHTML = '<span class="filter-label">Filter aktiv für:</span>' +
+            filterNames.map(name => `<span class="filter-tag">${name}</span>`).join('');
 
         const visibleCombos = document.querySelectorAll('.combo-row:not(.hidden)').length;
         if (visibleCombos === 0) {
@@ -560,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- EVENT LISTENER (Dein Original) ---
+    // --- CLICK EVENT-LISTENER ---
     cardRows.forEach(row => {
         row.addEventListener('click', () => {
             const cardId = row.dataset.id;

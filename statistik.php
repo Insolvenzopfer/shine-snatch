@@ -1,299 +1,356 @@
 <?php
 /**
- * Shine-Snatch Statistik Generator
+ * Shine-Snatch Statistik Generator (SQL-Version)
  */
 $config = require "config.php";
 
-// --- EINSTELLUNGEN ---
-$logFile = $config["log_file"];
-$maskLength = 5;
-$limitDays = 10; // <--- NEU: Nur die letzten X Tage berücksichtigen
+$maskLength = 5; // Bestimmt, wie viele Zeichen vom Spielernamen sichtbar bleiben (z.B. Insol*****)
+$limitDays = 10; // Nur Einträge der letzten X Tage berücksichtigen
 $targetContext = $_GET["context"] ?? "";
 
 date_default_timezone_set("Europe/Berlin");
 
-if (!file_exists($logFile)) {
-    die("Log-Datei nicht gefunden.");
-}
+// Zentrale DB-Verbindung laden
+require_once "db.php";
+$pdo = getDatabaseConnection();
 
-// Hilfsfunktion zur Zensur
+// Hilfsfunktion zur Zensur des Spieler-Namens (mit Sonderregel für kurze Namen)
 function maskName($name, $visibleChars)
 {
     $len = mb_strlen($name);
+
+    // SONDERREGEL: Wenn der Name weniger als 6 Zeichen hat
+    if ($len < 6) {
+        // Mindestens 2 Zeichen am Ende maskieren, der Rest bleibt sichtbar
+        $visibleCount = max(1, $len - 2);
+        return mb_substr($name, 0, $visibleCount) .
+            str_repeat("*", $len - $visibleCount);
+    }
+
+    // STANDARDREGEL: Für Namen ab 6 Zeichen
     return $len <= $visibleChars
         ? $name
         : mb_substr($name, 0, $visibleChars) .
                 str_repeat("*", $len - $visibleChars);
 }
 
-$lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+// 1. SCHRITT: Alle verfügbaren Kontexte (Server-Namen) ermitteln
+$cutoffDate = date(
+    "Y-m-d H:i:s",
+    strtotime("today - " . ($limitDays - 1) . " days"),
+);
 
-// 1. SCHRITT: Contexts finden & Säubern
-$availableContexts = [];
-$cutoffDate = date("Y-m-d", strtotime("today - " . ($limitDays - 1) . " days"));
+$stmtContexts = $pdo->prepare(
+    "SELECT DISTINCT server_name FROM snatch_logs WHERE created_at >= ? AND server_name != '' ORDER BY server_name ASC",
+);
+$stmtContexts->execute([$cutoffDate]);
+$availableContexts = $stmtContexts->fetchAll(PDO::FETCH_COLUMN);
 
-foreach ($lines as $line) {
-    $parts = explode("|", $line);
-    if (count($parts) >= 3) {
-        $ctx = trim($parts[2]);
-        // Hier schneiden wir alles ab der ersten Klammer [ weg
-        $cleanCtx = trim(explode("[", $ctx)[0]);
-
-        if (!empty($cleanCtx)) {
-            $availableContexts[$cleanCtx] = true;
-        }
-    }
-}
-$availableContexts = array_keys($availableContexts);
-sort($availableContexts);
-
-// Standard-Context setzen, falls keiner gewählt
-if (empty($targetContext)) {
-    $targetContext = $availableContexts[0] ?? "";
+if (empty($targetContext) && !empty($availableContexts)) {
+    $targetContext = $availableContexts[0];
 }
 
-// 2. SCHRITT: Daten verarbeiten
-$stats = [
-    "userStats" => [],
-    "cardCount" => [],
-    "dailyFirsts" => [],
-    "dayHighscores" => [],
-];
+// 2. SCHRITT: Daten für den ausgewählten Kontext abfragen
+$entries = [];
+$userStats = [];
+$cardStats = []; // Array für die Auswertung der gezogenen Karten
+$dailyWinners = [];
 
-foreach ($lines as $line) {
-    $parts = explode("|", $line);
-    if (count($parts) < 7) {
-        continue;
-    }
+if (!empty($targetContext)) {
+    // JOIN mit snatch_users, um den echten display_name zu holen
+    $stmtLogs = $pdo->prepare("
+        SELECT l.id, l.created_at, l.server_name, l.total_points, l.pulled_cards, l.user_id, u.display_name
+        FROM snatch_logs l
+        JOIN snatch_users u ON l.user_id = u.id
+        WHERE l.server_name = ? AND l.created_at >= ?
+        ORDER BY l.created_at DESC
+    ");
+    $stmtLogs->execute([$targetContext, $cutoffDate]);
+    $dbLogs = $stmtLogs->fetchAll(PDO::FETCH_ASSOC);
 
-    // Context Filter
-    $rowContext = trim($parts[2]);
-    $cleanRowContext = trim(explode("[", $rowContext)[0]);
+    // Tages-Bestwerte (Gewinner) via SQL ermitteln
+    $stmtWinners = $pdo->prepare("
+        SELECT DATE(created_at) as log_date, MAX(total_points) as max_pts
+        FROM snatch_logs
+        WHERE server_name = ? AND created_at >= ?
+        GROUP BY DATE(created_at)
+    ");
+    $stmtWinners->execute([$targetContext, $cutoffDate]);
+    $dailyWinners = $stmtWinners->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    // Jetzt vergleichen wir die gekürzten Namen
-    if ($cleanRowContext !== $targetContext) {
-        continue;
-    }
+    // Daten für die Ausgabe aufbereiten
+    foreach ($dbLogs as $row) {
+        $timestamp = strtotime($row["created_at"]);
+        $dateKey = date("Y-m-d", $timestamp);
 
-    $dateFull = trim($parts[0]);
-    $day = substr($dateFull, 0, 10);
+        $realName = !empty($row["display_name"])
+            ? $row["display_name"]
+            : "User #" . $row["user_id"];
+        $maskedPlayerName = maskName($realName, $maskLength);
 
-    // NEU: Datums-Filter (nur Einträge der letzten X Tage)
-    if ($day < $cutoffDate) {
-        continue;
-    }
+        $entries[] = [
+            "date" => date("d.m.Y", $timestamp),
+            "time" => date("H:i", $timestamp),
+            "rawDate" => $dateKey,
+            "user" => $maskedPlayerName,
+            "points" => (int) $row["total_points"],
+            "cards" => $row["pulled_cards"],
+        ];
 
-    $rawUser = trim(str_replace("(Spieler)", "", $parts[4]));
-    $points = (int) filter_var($parts[5], FILTER_SANITIZE_NUMBER_INT);
-
-    preg_match("/Hand:\s*([\d,]+)/", $parts[6], $matches);
-    $hand = isset($matches[1]) ? explode(",", $matches[1]) : [];
-
-    // Tages-Höchstwert tracken
-    if (
-        !isset($stats["dayHighscores"][$day]) ||
-        $points > $stats["dayHighscores"][$day]
-    ) {
-        $stats["dayHighscores"][$day] = $points;
-    }
-
-    // Karten zählen
-    foreach ($hand as $cardId) {
-        $cardId = trim($cardId);
-        if ($cardId !== "") {
-            $stats["cardCount"][$cardId] =
-                ($stats["cardCount"][$cardId] ?? 0) + 1;
+        // --- KARTEN-ZEHLUNG (NEU) ---
+        if (!empty($row["pulled_cards"])) {
+            // Falls mehrere Karten durch Komma getrennt sind, splitten wir sie auf
+            $cardsArray = explode(",", $row["pulled_cards"]);
+            foreach ($cardsArray as $cardName) {
+                $cardName = trim($cardName); // Leerzeichen entfernen
+                if ($cardName !== "") {
+                    if (!isset($cardStats[$cardName])) {
+                        $cardStats[$cardName] = 0;
+                    }
+                    $cardStats[$cardName]++;
+                }
+            }
         }
-    }
 
-    // 1. User Stats wie gehabt
-    if (!isset($stats["userStats"][$rawUser])) {
-        $stats["userStats"][$rawUser] = [
-            "displayName" => maskName($rawUser, $maskLength),
-            "count" => 0,
-            "highest" => 0,
-            "lowest" => 9999,
-            "sum" => 0,
-        ];
-    }
-    $stats["userStats"][$rawUser]["count"]++;
-    $stats["userStats"][$rawUser]["sum"] += $points;
-    if ($points > $stats["userStats"][$rawUser]["highest"]) {
-        $stats["userStats"][$rawUser]["highest"] = $points;
-    }
-    if ($points < $stats["userStats"][$rawUser]["lowest"]) {
-        $stats["userStats"][$rawUser]["lowest"] = $points;
-    }
+        // Spieler-Statistiken aggregieren
+        if (!isset($userStats[$maskedPlayerName])) {
+            $userStats[$maskedPlayerName] = [
+                "displayName" => $maskedPlayerName,
+                "count" => 0,
+                "highest" => -999,
+                "lowest" => 999,
+                "sum" => 0,
+            ];
+        }
 
-    // 2. Daily First Logik & separater Highscore NUR für diese Liste
-    $dayUserKey = $day . "_" . $rawUser;
-    if (!isset($stats["dailyFirsts"][$dayUserKey])) {
-        $stats["dailyFirsts"][$dayUserKey] = [
-            "time" => $dateFull,
-            "user" => maskName($rawUser, $maskLength),
-            "points" => $points,
-            "dayKey" => $day,
-        ];
-
-        // NEU: Wir prüfen den Highscore NUR innerhalb der ersten täglichen Ziehungen
+        $userStats[$maskedPlayerName]["count"]++;
+        $userStats[$maskedPlayerName]["sum"] += (int) $row["total_points"];
         if (
-            !isset($stats["firstsHighscore"][$day]) ||
-            $points > $stats["firstsHighscore"][$day]
+            (int) $row["total_points"] >
+            $userStats[$maskedPlayerName]["highest"]
         ) {
-            $stats["firstsHighscore"][$day] = $points;
+            $userStats[$maskedPlayerName]["highest"] =
+                (int) $row["total_points"];
+        }
+        if (
+            (int) $row["total_points"] < $userStats[$maskedPlayerName]["lowest"]
+        ) {
+            $userStats[$maskedPlayerName]["lowest"] =
+                (int) $row["total_points"];
         }
     }
+
+    // Sortierung der Spieler-Leistung nach dem Durchschnitt (Höchster zuerst)
+    uasort($userStats, function ($a, $b) {
+        $avgA = $a["sum"] / $a["count"];
+        $avgB = $b["sum"] / $b["count"];
+        return $avgB <=> $avgA;
+    });
+
+    // Sortierung der Karten nach Häufigkeit (Oft gezogene zuerst) (NEU)
+    arsort($cardStats);
 }
-
-arsort($stats["cardCount"]);
-$topCards = array_slice($stats["cardCount"], 0, 10, true);
 ?>
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Snatch Statistik</title>
+    <title>Shine-Snatch Highscores & Statistiken</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #eee; padding: 20px; }
-        .container { max-width: 1100px; margin: auto; }
-        .header-area { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1e1e1e; padding-bottom: 20px; }
-        h1 { color: #7e22ce; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px; }
-        .context-select { background: #1e1e1e; color: #facc15; border: 1px solid #7e22ce; padding: 10px; border-radius: 5px; cursor: pointer; }
+        :root {
+            --bg: #050705;
+            --panel: rgba(20, 25, 20, 0.7);
+            --primary: #2cb24c;
+            --accent: #a855f7;
+            --card-charts: #eab308; /* Neue Farbe für die Karten-Charts (Gold/Gelb) */
+            --text: #e2e8f0;
+            --card-bg: rgba(255,255,255,0.03);
+        }
+        body {
+            font-family: 'Signika', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 30px 15px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; } /* Leicht verbreitert für das 3er-Layout */
+        h1 { text-align: center; color: var(--primary); font-weight: 600; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        .subtitle { text-align: center; opacity: 0.5; margin-bottom: 30px; font-weight: 300; }
+        .tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 30px; }
+        .tab-btn {
+            background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); color: var(--text);
+            padding: 10px 20px; border-radius: 12px; text-decoration: none; font-size: 0.95rem; transition: all 0.2s;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--primary); }
+        .tab-btn.active { background: rgba(44, 178, 76, 0.2); border-color: var(--primary); color: #fff; font-weight: 600; box-shadow: 0 0 15px rgba(44,178,76,0.2); }
+        .card-box { background: var(--panel); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { margin-top: 0; font-size: 1.3rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; margin-bottom: 15px; }
+        .title-chronik { color: var(--accent); }
+        .title-spieler { color: var(--primary); }
+        .title-karten { color: var(--card-charts); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 12px 10px; color: var(--text); opacity: 0.4; font-weight: 300; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.95rem; vertical-align: middle; }
+        .date-row td { background: rgba(168, 85, 247, 0.05); color: var(--accent); font-weight: 600; padding: 8px 10px; font-size: 0.85rem; border-bottom: 1px solid rgba(168, 85, 247, 0.2); }
+        code { background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; color: #f472b6; font-family: monospace; font-size: 0.9rem; }
+        .highlight { color: var(--primary); font-weight: 600; }
+        .winner-label { background: linear-gradient(45deg, #eab308, #ca8a04); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-left: 8px; display: inline-flex; align-items: center; }
+        .no-data { text-align: center; opacity: 0.5; padding: 40px 0; }
 
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card-box { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
-        h2 { color: #00ff00; font-size: 1.1em; border-bottom: 1px solid #333; padding-bottom: 5px; }
-
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; color: #aaa; font-size: 0.75rem; padding: 10px; border-bottom: 2px solid #333; }
-        td { padding: 10px; border-bottom: 1px solid #2a2a2a; }
-
-        .highlight { color: #facc15; font-weight: bold; }
-        code { background: #000; padding: 2px 6px; border-radius: 4px; color: #38bdf8; font-family: monospace; }
-
-        .date-separator td { border-top: 3px solid #7e22ce !important; padding-top: 15px !important; }
-        .date-header { color: #facc15; font-size: 0.8rem; font-weight: bold; }
-
-        .day-winner { background: rgba(250, 204, 21, 0.07) !important; }
-        .winner-label { font-size: 0.65rem; color: #facc15; text-transform: uppercase; display: block; font-weight: bold; }
-
-        .bar-container { background: #000; border-radius: 10px; height: 10px; width: 80px; display: inline-block; border: 1px solid #333; }
-        .bar-fill { background: linear-gradient(90deg, #7e22ce, #a855f7); height: 100%; border-radius: 10px; }
+        /* Grid-Layout für 3 Spalten nebeneinander auf großen Bildschirmen */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 20px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header-area">
-        <h1>📊 Snatch-Statistik</h1>
-        <form method="GET" id="contextForm">
-            <select name="context" class="context-select" onchange="this.form.submit()">
-            <?php foreach ($availableContexts as $ctx): ?>
-            <option value="<?php echo htmlspecialchars(
+    <h1>🎰 Snatch Lore & Analytics</h1>
+    <div class="subtitle">Live-Auswertung der letzten <?php echo $limitDays; ?> Tage</div>
+
+    <div class="tabs">
+        <?php foreach ($availableContexts as $ctx): ?>
+            <a href="?context=<?php echo urlencode(
                 $ctx,
-            ); ?>" <?php echo $ctx === $targetContext ? "selected" : ""; ?>>
-                <?php echo htmlspecialchars($ctx); ?>
-            </option>
+            ); ?>" class="tab-btn <?php echo $ctx === $targetContext
+    ? "active"
+    : ""; ?>">
+                🌐 <?php echo htmlspecialchars($ctx); ?>
+            </a>
         <?php endforeach; ?>
-            </select>
-        </form>
-        <p><small>Anzeige der letzten <strong><?php echo $limitDays; ?> Tage</strong></small></p>
     </div>
 
-    <div class="grid">
-        <div class="card-box">
-            <h2>🏆 Top Karten (Last <?php echo $limitDays; ?>d)</h2>
-            <table>
-                <?php foreach ($topCards as $id => $count): ?>
-                <tr>
-                    <td>Karte #<?php echo $id; ?></td>
-                    <td>
-                        <div class="bar-container"><div class="bar-fill" style="width: <?php echo min(
-                            100,
-                            $count * 10,
-                        ); ?>%"></div></div>
-                        <?php echo $count; ?>x
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </table>
+    <?php if (empty($targetContext) || empty($entries)): ?>
+        <div class="card-box no-data">
+            <h3>Keine Daten in diesem Zeitraum vorhanden</h3>
+            <p>Es wurden in den letzten <?php echo $limitDays; ?> Tagen keine Ziehungen für diesen Kontext aufgezeichnet.</p>
         </div>
+    <?php else: ?>
 
+    <div class="stats-grid">
+
+        <!-- SPALTE 1: CHRONIK -->
         <div class="card-box">
-            <h2>📅 Erste Tages-Ziehungen</h2>
+            <h2 class="title-chronik">📜 Chronik der Ziehungen</h2>
             <table>
+                <thead>
+                    <tr><th>Uhrzeit / Spieler</th><th>Ergebnis</th></tr>
+                </thead>
                 <tbody>
                     <?php
-                    $recentFirsts = array_reverse($stats["dailyFirsts"]);
-                    $lastDate = null;
+                    $lastDate = "";
+                    foreach ($entries as $entry):
 
-                    foreach ($recentFirsts as $entry):
-
-                        $currentDate = date("d.m.Y", strtotime($entry["time"]));
-                        $isNewDay =
-                            $lastDate !== null && $lastDate !== $currentDate;
-
-                        // Jetzt prüfen wir gegen den Highscore der ERSTEN ZIEHUNGEN dieses Tages
+                        $currentDate = $entry["date"];
+                        if ($currentDate !== $lastDate): ?>
+                        <tr class="date-row">
+                            <td colspan="2">📅 <?php echo $currentDate; ?></td>
+                        </tr>
+                    <?php endif;
                         $isWinner =
+                            isset($dailyWinners[$entry["rawDate"]]) &&
                             $entry["points"] ===
-                            ($stats["firstsHighscore"][$entry["dayKey"]] ??
-                                null);
+                                (int) $dailyWinners[$entry["rawDate"]];
                         ?>
-    <tr class="<?php echo $isNewDay
-        ? "date-separator"
-        : ""; ?> <?php echo $isWinner ? "day-winner" : ""; ?>">
-        <td>
-            <?php if ($isNewDay || $lastDate === null): ?>
-                <span class="date-header"><?php echo $currentDate; ?></span><br>
-            <?php endif; ?>
-            <small><?php echo date(
-                "H:i",
-                strtotime($entry["time"]),
-            ); ?> Uhr</small>
-        </td>
-        <td>
-            <?php if ($isWinner): ?>
-                <span class="winner-label">👑 Tages-Bestwert</span>
-            <?php endif; ?>
-            <code><?php echo $entry["user"]; ?></code>
-        </td>
-        <td class="highlight"><?php echo $entry["points"]; ?> Pkt</td>
-    </tr>
-<?php $lastDate = $currentDate;
+                    <tr>
+                        <td>
+                            <span style="opacity:0.4; font-size:0.8rem; margin-right:5px;"><?php echo $entry[
+                                "time"
+                            ]; ?></span>
+                            <code><?php echo htmlspecialchars(
+                                $entry["user"],
+                            ); ?></code>
+                            <?php if ($isWinner): ?>
+                                <span class="winner-label">👑 Tages-Bestwert</span>
+                            <?php endif; ?>
+                            <br><small style="opacity: 0.4; font-size: 0.75rem;">Hand: <?php echo htmlspecialchars(
+                                $entry["cards"],
+                            ); ?></small>
+                        </td>
+                        <td class="highlight" style="text-align: right; white-space: nowrap;"><?php echo $entry[
+                            "points"
+                        ]; ?> Pkt</td>
+                    </tr>
+                    <?php $lastDate = $currentDate;
                     endforeach;
                     ?>
                 </tbody>
             </table>
         </div>
+
+        <!-- SPALTE 2: SPIELER LEISTUNG -->
+        <div class="card-box" style="align-self: start;">
+            <h2 class="title-spieler">👤 Spieler-Leistung (Ø Schnitt)</h2>
+            <table>
+                <thead>
+                    <tr><th>Spieler</th><th>Züge</th><th>Max</th><th>Min</th><th style="text-align: right;">Ø Schnitt</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($userStats as $u): ?>
+                    <tr>
+                        <td><code><?php echo htmlspecialchars(
+                            $u["displayName"],
+                        ); ?></code></td>
+                        <td><?php echo $u["count"]; ?></td>
+                        <td style="color: #4ade80;"><?php echo $u[
+                            "highest"
+                        ]; ?></td>
+                        <td style="color: #f87171;"><?php echo $u[
+                            "lowest"
+                        ]; ?></td>
+                        <td class="highlight" style="text-align: right;"><?php echo round(
+                            $u["sum"] / $u["count"],
+                            1,
+                        ); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SPALTE 3: KARTEN CHARTS (NEU) -->
+        <div class="card-box" style="align-self: start;">
+            <h2 class="title-karten">🃏 Top gezogene Karten</h2>
+            <table>
+                <thead>
+                    <tr><th>Platz</th><th>Karte</th><th style="text-align: right;">Häufigkeit</th></tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($cardStats)): ?>
+                        <tr><td colspan="3" style="text-align:center; opacity:0.5; padding: 20px;">Es wurden noch keine Karten aufgezeichnet.</td></tr>
+                    <?php else:$rank = 1;
+                        foreach ($cardStats as $cardName => $count):
+
+                            $rankDisplay = $rank;
+                            if ($rank === 1) {
+                                $rankDisplay = "🥇";
+                            }
+                            if ($rank === 2) {
+                                $rankDisplay = "🥈";
+                            }
+                            if ($rank === 3) {
+                                $rankDisplay = "🥉";
+                            }
+                            ?>
+                        <tr>
+                            <td style="width: 40px; font-weight: bold;"><?php echo $rankDisplay; ?></td>
+                            <td><span style="font-size: 1.05rem;"><?php echo htmlspecialchars(
+                                $cardName,
+                            ); ?></span></td>
+                            <td style="text-align: right; font-weight: 600; color: var(--card-charts);"><?php echo $count; ?>x</td>
+                        </tr>
+                        <?php $rank++;
+                        endforeach;endif; ?>
+                </tbody>
+            </table>
+        </div>
+
     </div>
 
-    <div class="card-box" style="margin-top: 20px;">
-        <h2>👤 Spieler-Leistung (Letzte <?php echo $limitDays; ?> Tage)</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Spieler</th><th>Ziehungen</th><th>Beste</th><th>Niedrigste</th><th>Ø Schnitt</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($stats["userStats"] as $u): ?>
-                <tr>
-                    <td><code><?php echo $u["displayName"]; ?></code></td>
-                    <td><?php echo $u["count"]; ?></td>
-                    <td style="color: #4ade80;"><?php echo $u[
-                        "highest"
-                    ]; ?></td>
-                    <td style="color: #f87171;"><?php echo $u["lowest"]; ?></td>
-                    <td class="highlight"><?php echo round(
-                        $u["sum"] / $u["count"],
-                        1,
-                    ); ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+    <?php endif; ?>
 </div>
 
 </body>

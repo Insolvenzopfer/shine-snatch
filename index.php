@@ -1,7 +1,6 @@
 <?php
-$config = require 'config.php';
-$currentVersion = $config['current_version'];
-
+$config = require "config.php";
+$currentVersion = $config["current_version"];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -10,8 +9,7 @@ $currentVersion = $config['current_version'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/webp" href="/dnd/items/Krark/shine-snatch.webp">
     <title>Shine Snatch Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;600&display=swap" rel="stylesheet">
-    <?php if($_SERVER['HTTP_HOST']=="www.9ps.eu") { ?>
+    <?php if ($_SERVER["HTTP_HOST"] == "www.9ps.eu") { ?>
         <link rel="stylesheet" href="/css/style_dragon.css">
         <script src="/js/script_dragon.js" defer></script>
     <?php } ?>
@@ -213,7 +211,7 @@ $currentVersion = $config['current_version'];
     }
 
     .content-container { width: 95%; height: 80%; }
-    
+
     .content-container.preview-mode {
         width: 100%;
         transform: scale(0.9); /* Ein bisschen verkleinern damit es passt */
@@ -295,26 +293,27 @@ function loadPage(url, element) {
 // Funktion 2: Die spezielle API-Vorschau (POST Request)
 async function loadPreview(element) {
     if(element) setActive(element);
-    
-    wrapper.classList.add('preview-mode'); 
+
+    wrapper.classList.add('preview-mode');
     refreshBtn.style.display = 'block';
 
     const payload = {
         actorName: "Dashboard-Admin",
         theme: "zufall",
         world: "Dashboard-EyeCatcher",
+        version: "Snatch Dashboard",
         ownedCards: [],
         scriptVersion: <?php echo $currentVersion; ?>,
     };
 
     try {
-        const response = await fetch('<?php echo $config['api_url'] ?>', {
+        const response = await fetch('<?php echo $config["api_url"]; ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         const data = await response.json();
-        
+
         if (data.html) {
             const doc = frame.contentWindow.document;
             doc.open();
@@ -324,9 +323,9 @@ async function loadPreview(element) {
                 <head>
                     <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300..700&display=swap" rel="stylesheet">
                     <style>
-                        body { 
-                            margin: 0; background: #000; 
-                            display: inline-block; width: 400px; 
+                        body {
+                            margin: 0; background: #000;
+                            display: inline-block; width: 400px;
                             padding: 20px; color: white;
                             overflow: hidden;
                         }
