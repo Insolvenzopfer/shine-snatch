@@ -323,6 +323,8 @@ $currentConfig = $themes[$currentThemeName] ?? [];
     : "" ?>><?= htmlspecialchars($name) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <!-- NEU: Kopier-Button für Admins hinter der Selectbox -->
+                        <button type="button" class="btn btn-outline-warning" id="copyThemeNameAdminBtn" onclick="copyThemeNameDirectly()" title="Theme-Namen kopieren">📋</button>
                         <button type="button" class="btn btn-outline-primary" onclick="createNew()">Neu</button>
                     </div>
                 </div>
@@ -428,13 +430,20 @@ $currentConfig = $themes[$currentThemeName] ?? [];
     $name,
 ) ?></strong>
                                 </div>
-                                <span class="badge border" style="background: <?= htmlspecialchars(
-                                    $cfg["colorBg"] ?? "#121212",
-                                ) ?>; color: <?= htmlspecialchars(
+
+                                <div class="d-flex gap-1 align-items-center">
+                                    <!-- NEU: Kopier-Button für reguläre User direkt vor dem Vorschau-Badge -->
+                                    <button class="btn btn-sm btn-dark border-secondary p-1 py-0" style="font-size: 0.75rem;" onclick="event.stopPropagation(); copyThemeNameDirectly('<?= htmlspecialchars(
+                                        $name,
+                                    ) ?>', this)" title="Name kopieren">📋</button>
+                                    <span class="badge border" style="background: <?= htmlspecialchars(
+                                        $cfg["colorBg"] ?? "#121212",
+                                    ) ?>; color: <?= htmlspecialchars(
     $cfg["colorPrimary"] ?? "#fff",
 ) ?>; border-color: <?= htmlspecialchars(
     $cfg["colorAccent"] ?? "#daa520",
 ) ?> !important;">Vorschau</span>
+                                </div>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -784,6 +793,25 @@ async function copyMacroToClipboard() {
         }, 2000);
     } catch (err) {
         alert('Konnte foundry-macro.js nicht laden.');
+    }
+}
+
+// NEU: Universelle JavaScript-Funktion zum direkten Kopieren des Theme-Namens
+async function copyThemeNameDirectly(themeName = null, btnElement = null) {
+    // Wenn kein Name übergeben wurde, lade das aktuell im Editor ausgewählte Theme
+    const targetName = themeName || currentSelectedThemeName;
+    const targetBtn = btnElement || document.getElementById('copyThemeNameAdminBtn');
+    const originalContent = targetBtn.innerHTML;
+
+    try {
+        await navigator.clipboard.writeText(targetName);
+        targetBtn.innerHTML = "✅";
+
+        setTimeout(() => {
+            targetBtn.innerHTML = originalContent;
+        }, 1500);
+    } catch (err) {
+        console.error("Fehler beim Kopieren des Theme-Namens:", err);
     }
 }
 </script>

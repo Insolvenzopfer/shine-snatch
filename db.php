@@ -62,6 +62,24 @@ function getDatabaseConnection()
             ? getenv("DB_PASS")
             : $_ENV["DB_PASS"] ?? ($_SERVER["DB_PASS"] ?? "");
 
+    // --- 3. NEU: CONFIG_NETCUP.PHP FALLBACK FÜR BACKUPSYSTEME ---
+    // Falls die Pflichtvariablen immer noch leer sind, schauen wir, ob die PHP-Konfigurationsdatei existiert
+    if (empty($dbHost) || empty($dbName) || empty($dbUser)) {
+        $netcupConfigPath = __DIR__ . "config_netcup.php";
+
+        if (file_exists($netcupConfigPath)) {
+            $netcupConfig = require $netcupConfigPath;
+
+            if (is_array($netcupConfig)) {
+                $dbHost = $netcupConfig["DB_HOST"] ?? $dbHost;
+                $dbName = $netcupConfig["DB_NAME"] ?? $dbName;
+                $dbUser = $netcupConfig["DB_USER"] ?? $dbUser;
+                $dbPass = $netcupConfig["DB_PASS"] ?? $dbPass;
+                $dbPort = $netcupConfig["DB_PORT"] ?? $dbPort; // Falls du später mal einen Port in der PHP-Datei definierst
+            }
+        }
+    }
+
     if (empty($dbHost) || empty($dbName) || empty($dbUser)) {
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode([

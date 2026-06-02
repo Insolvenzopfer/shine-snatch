@@ -55,8 +55,9 @@ function userExists($targetString, $pdo)
 // ==========================================================
 // HILFSFUNKTION: User laden oder dynamisch anlegen (Zentral mit Discord-Ping Erkennung)
 // ==========================================================
-function getOrCreateUser($input, $pdo)
+function getOrCreateUser($input, $pdo, $onlyIfExisting = false)
 {
+    // <-- NEU: optionaler Parameter
     global $config;
     $actorId = !empty($input["actorId"])
         ? trim((string) $input["actorId"])
@@ -72,7 +73,6 @@ function getOrCreateUser($input, $pdo)
         : $actorName;
 
     // --- ZENTRALE DISCORD-PING ERKENNUNG ---
-    // Falls actorName oder playerName fälschlicherweise ein Discord-Ping ist (<@123456789>)
     if ($actorId === null) {
         if (
             str_starts_with($actorName, "<@") &&
@@ -89,7 +89,7 @@ function getOrCreateUser($input, $pdo)
 
     $finalActorId = $actorId ?? trim((string) $actorName);
 
-    // Suche in der Datenbank anhand der (jetzt sauber ermittelten) ID
+    // Suche in der Datenbank anhand der ID
     $stmt = $pdo->prepare(
         "SELECT * FROM snatch_users WHERE actor_id = ? AND (server_id = ? OR server_id IS NULL OR server_id = '') LIMIT 1",
     );
@@ -97,17 +97,25 @@ function getOrCreateUser($input, $pdo)
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user) {
+        // NEU: Wenn $onlyIfExisting aktiv ist, verändern wir AUF KEINEN FALL die Namen in der DB
+        if ($onlyIfExisting) {
+            return $user;
+        }
+
         // Falls wir den User über einen Ping gefunden haben, wollen wir seinen actor_name
         // nicht mit "<@517115...>" überschreiben! Wir updaten nur, wenn es ein echter Name ist.
-        $isNameValid = !str_starts_with($actorName, "<@") && !empty($actorName);
+        $isNameValid =
+            !str_starts_with($actorName, "<@") &&
+            !empty($actorName) &&
+            !str_starts_with(strtolower($actorName), "discord-user-");
         $isPlayerValid =
-            !str_starts_with($playerName, "<@") && !empty($playerName);
+            !str_starts_with($playerName, "<@") &&
+            !empty($playerName) &&
+            !str_starts_with(strtolower($playerName), "discord-user-");
 
         $newActorName = $isNameValid ? $actorName : $user["actor_name"];
         $newDisplayName = $isPlayerValid ? $playerName : $user["display_name"];
 
-        // --- FIX 1: $shouldUpdateServerId hier sauber definieren ---
-        // Falls in der DB noch keine Server-ID vorhanden ist, wir jetzt aber eine mitbekommen, wollen wir updaten
         $shouldUpdateServerId = empty($user["server_id"]) && !empty($serverId);
 
         // Nur updaten, wenn sich tatsächlich ein echter Textname oder die Server-ID geändert hat
@@ -134,16 +142,23 @@ function getOrCreateUser($input, $pdo)
         return $user;
     }
 
-    // Neuer User: Anlage in der Datenbank
-    // Falls wir hier nur die ID aus dem Ping haben, setzen wir einen temporären Namen ein
-    $insertActorName = !str_starts_with($actorName, "<@")
-        ? $actorName
-        : "User #" . substr($finalActorId, -4);
-    $insertPlayerName = !str_starts_with($playerName, "<@")
-        ? $playerName
-        : $insertActorName;
+    // NEU: Wenn der User nicht existiert und wir ihn nicht anlegen dürfen, brechen wir hier ab!
+    if ($onlyIfExisting) {
+        return null;
+    }
 
-    // --- FIX 2: Sicherstellen, dass der String für die DB niemals echtes NULL ist ---
+    // Neuer User: Anlage in der Datenbank (wie gehabt)
+    $insertActorName =
+        !str_starts_with($actorName, "<@") &&
+        !str_starts_with(strtolower($actorName), "discord-user-")
+            ? $actorName
+            : "User #" . substr($finalActorId, -4);
+    $insertPlayerName =
+        !str_starts_with($playerName, "<@") &&
+        !str_starts_with(strtolower($playerName), "discord-user-")
+            ? $playerName
+            : $insertActorName;
+
     $finalServerId = $serverId ?? "";
 
     $stmtInsert = $pdo->prepare(
@@ -156,30 +171,25 @@ function getOrCreateUser($input, $pdo)
         $insertPlayerName,
     ]);
 
-    // DIREKT NOCHMAL LADEN (damit Standardwerte wie Theme 'Gold' aktiv sind)
     $stmt = $pdo->prepare(
         "SELECT * FROM snatch_users WHERE actor_id = ? AND server_id = ?",
     );
     $stmt->execute([$finalActorId, $finalServerId]);
     $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // === NEU: WILLKOMMENS-GESCHENK FÜR NEUE SPIELER ===
-    // Wir greifen hier global auf die $config zu, damit der Schalter funktioniert
     global $config;
     $giftEnabled = isset($config["newplayergift"])
         ? (bool) $config["newplayergift"]
         : false;
 
     if ($giftEnabled && $newUser) {
-        // Karte generieren
         $giftCard = generateWeightedCardFromDb($pdo, $config);
-
         if ($giftCard) {
             $stmtGift = $pdo->prepare(
                 "INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category) VALUES (?, ?, ?, ?, ?)",
             );
             $stmtGift->execute([
-                $newUser["id"], // Hier nutzen wir die auto-increment ID aus der DB
+                $newUser["id"],
                 $giftCard["id"],
                 $giftCard["name"],
                 $giftCard["emoji"],
@@ -582,15 +592,26 @@ elseif (str_starts_with(strtolower($theme), "createcard")) {
             "",
             $targetPlayerName,
         );
-        // Fallback-Name für getOrCreateUser, falls der Spieler komplett neu angelegt werden muss
         $userParams["actorName"] = "Discord-User-" . $userParams["actorId"];
     } else {
+        // Falls kein Ping, sondern ein Name eingegeben wurde, suchen wir nach diesem actor_name
         $userParams["actorName"] = $targetPlayerName;
     }
 
-    // Ziel-User generieren / holen (Sicher isoliert pro Server-ID)
-    $targetUser = getOrCreateUser($userParams, $pdo);
+    // NEU: Wir übergeben TRUE als 3. Parameter ($onlyIfExisting).
+    // Das verhindert das Überschreiben alter Namen und das ungewollte Neuanlegen!
+    $targetUser = getOrCreateUser($userParams, $pdo, true);
+
     $actorPing = "<@{$dbUser["actor_id"]}>";
+
+    // NEU: Abbruch, falls der Spieler nicht existiert
+    if (!$targetUser) {
+        echo json_encode([
+            "text" => "❌ **Fehler beim Kartendruck!** Der Spieler **{$targetPlayerName}** hat noch kein Snatch-Profil auf diesem Server. Er muss zuerst mindestens 1x normal mitspielen oder würfeln!",
+        ]);
+        exit();
+    }
+
     $targetPing = "<@{$targetUser["actor_id"]}>";
 
     // Karte mithilfe der modifizierten Funktion generieren
