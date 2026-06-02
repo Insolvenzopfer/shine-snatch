@@ -19,19 +19,23 @@ function maskName($name, $visibleChars)
 {
     $len = mb_strlen($name);
 
-    // SONDERREGEL: Wenn der Name weniger als 6 Zeichen hat
+    // SONDERREGEL: Wenn der Name sehr kurz ist (weniger als 6 Zeichen)
     if ($len < 6) {
         // Mindestens 2 Zeichen am Ende maskieren, der Rest bleibt sichtbar
         $visibleCount = max(1, $len - 2);
+        $asterisksCount = $len - $visibleCount; // Hier entspricht es der echten Restlänge
         return mb_substr($name, 0, $visibleCount) .
-            str_repeat("*", $len - $visibleCount);
+            str_repeat("*", $asterisksCount);
     }
 
     // STANDARDREGEL: Für Namen ab 6 Zeichen
-    return $len <= $visibleChars
-        ? $name
-        : mb_substr($name, 0, $visibleChars) .
-                str_repeat("*", $len - $visibleChars);
+    if ($len <= $visibleChars) {
+        return $name;
+    }
+
+    // Wenn der Name länger ist, schneiden wir ihn bei $visibleChars ab
+    // und hängen EXAKT $visibleChars viele Sternchen (entspricht $maskLength) hinten an.
+    return mb_substr($name, 0, $visibleChars) . str_repeat("*", $visibleChars);
 }
 
 // 1. SCHRITT: Alle verfügbaren Kontexte (Server-Namen) ermitteln
@@ -228,7 +232,13 @@ if (!empty($targetContext)) {
             <h3>Keine Daten in diesem Zeitraum vorhanden</h3>
             <p>Es wurden in den letzten <?php echo $limitDays; ?> Tagen keine Ziehungen für diesen Kontext aufgezeichnet.</p>
         </div>
-    <?php else: ?>
+    <?php
+
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        else: ?>
 
     <div class="stats-grid">
 
@@ -321,8 +331,12 @@ if (!empty($targetContext)) {
                 <tbody>
                     <?php if (empty($cardStats)): ?>
                         <tr><td colspan="3" style="text-align:center; opacity:0.5; padding: 20px;">Es wurden noch keine Karten aufgezeichnet.</td></tr>
-                    <?php else:$rank = 1;
+                        <?php else:$rank = 1;
                         foreach ($cardStats as $cardName => $count):
+
+                            if ($rank > 15) {
+                                break;
+                            }
 
                             $rankDisplay = $rank;
                             if ($rank === 1) {
@@ -335,7 +349,7 @@ if (!empty($targetContext)) {
                                 $rankDisplay = "🥉";
                             }
                             ?>
-                        <tr>
+                            <tr>
                             <td style="width: 40px; font-weight: bold;"><?php echo $rankDisplay; ?></td>
                             <td><span style="font-size: 1.05rem;"><?php echo htmlspecialchars(
                                 $cardName,

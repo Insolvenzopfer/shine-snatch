@@ -1,6 +1,6 @@
 <?php
 /**
- * Snatch Balance - Wahrscheinlichkeits-Rechner (SQL-Version)
+ * Snatch Balance - Wahrscheinlichkeits-Rechner (SQL-Version mit Gruppen-Support)
  */
 require_once "db.php";
 $pdo = getDatabaseConnection();
@@ -17,10 +17,22 @@ $stmtCombos = $pdo->query(
 );
 $dbCombos = $stmtCombos->fetchAll(PDO::FETCH_ASSOC);
 
+// 3. NEU: Kartengruppen aus der Datenbank laden
+$stmtGroups = $pdo->query("SELECT id, cards FROM snatch_game_groups");
+$dbGroups = $stmtGroups->fetchAll(PDO::FETCH_ASSOC);
+
+// Gruppen-Array für JavaScript vorbereiten (ID => Array von Karten)
+$groups = [];
+foreach ($dbGroups as $g) {
+    $decodedCards = !empty($g["cards"]) ? json_decode($g["cards"], true) : [];
+    $groups[strtoupper(trim($g["id"]))] = is_array($decodedCards)
+        ? $decodedCards
+        : [];
+}
+
 // 'needs' aus dem SQL-JSON-Array in ein echtes PHP-Array umwandeln
 $combos = [];
 foreach ($dbCombos as $cb) {
-    // KORREKTUR: json_decode statt explode nutzen!
     $decodedNeeds = !empty($cb["needs"]) ? json_decode($cb["needs"], true) : [];
     $cb["needs"] = is_array($decodedNeeds) ? $decodedNeeds : [];
     $combos[] = $cb;
@@ -45,7 +57,7 @@ foreach ($cardTypes as $ct) {
         th, td { text-align: left; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         th { color: #2cb24c; font-size: 0.8rem; text-transform: uppercase; }
         .prob-tag { padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.85rem; }
-        .rare { background: rgba(239, 68, 68, 0.2); color: #ef4444; }   /* < 0.5% */
+        .rare { background: rgba(239, 68, 68, 0.2); color: #ef4444; }   /* < 0.1% */
         .common { background: rgba(16, 185, 129, 0.2); color: #10b981; } /* > 2% */
         .highlight { color: #a855f7; font-weight: bold; }
         h1 { color: #2cb24c; margin-top: 0; }
@@ -68,7 +80,7 @@ foreach ($cardTypes as $ct) {
                     <tr><th>Typ</th><th>Name</th><th>Anzahl im Deck</th><th>Anteil %</th></tr>
                 </thead>
                 <tbody id="cardsBody">
-                    </tbody>
+                </tbody>
             </table>
         </div>
 
@@ -79,7 +91,7 @@ foreach ($cardTypes as $ct) {
                     <tr><th>Kombination</th><th>Punkte</th><th>Chance (Hand)</th><th>Effizienz-Index</th></tr>
                 </thead>
                 <tbody id="comboBody">
-                    </tbody>
+                </tbody>
             </table>
         </div>
     </div>
@@ -87,6 +99,7 @@ foreach ($cardTypes as $ct) {
     <script>
     const cardTypes = <?= json_encode($cardTypes) ?>;
     const combos = <?= json_encode($combos) ?>;
+    const groups = <?= json_encode($groups) ?>; // NEU: Gruppen an JS übergeben
 
     const HAND_SIZE = 5;
 
@@ -141,10 +154,27 @@ foreach ($cardTypes as $ct) {
                 let favorableWays = 1;
                 let totalRequiredCards = 0;
                 let isValid = true;
+                let subPoolsExcluded = 0;
 
                 for (let id in requirements) {
                     let requiredCount = requirements[id];
-                    let availableCount = cardMap[id] ? parseInt(cardMap[id].count) : 0;
+                    let availableCount = 0;
+
+                    // NEU: Prüfung ob es sich um eine Gruppe handelt (ID-Länge > 3)
+                    if (id.length > 3 && groups[id]) {
+                        // Addiere die Anzahl aller Karten, die zu dieser Gruppe gehören
+                        groups[id].forEach(cardId => {
+                            const upperCardId = String(cardId).toUpperCase().trim();
+                            if (cardMap[upperCardId]) {
+                                availableCount += parseInt(cardMap[upperCardId].count);
+                            }
+                        });
+                        subPoolsExcluded += availableCount;
+                    } else {
+                        // Regulärer Kartentyp
+                        availableCount = cardMap[id] ? parseInt(cardMap[id].count) : 0;
+                        subPoolsExcluded += availableCount;
+                    }
 
                     if (availableCount >= requiredCount) {
                         favorableWays *= nCr(availableCount, requiredCount);
@@ -157,11 +187,7 @@ foreach ($cardTypes as $ct) {
 
                 if (isValid) {
                     let remainingHandSlots = HAND_SIZE - totalRequiredCards;
-                    let remainingPool = totalCards;
-
-                    for (let id in requirements) {
-                        remainingPool -= cardMap[id] ? parseInt(cardMap[id].count) : 0;
-                    }
+                    let remainingPool = totalCards - subPoolsExcluded;
 
                     favorableWays *= nCr(remainingPool, remainingHandSlots);
                     finalProb = (favorableWays / totalCombinations) * 100;

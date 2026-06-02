@@ -56,8 +56,18 @@ $currentVersion = $config["current_version"];
                 "api_url"
             ]; ?>">
 
-            <label>Spieler (actorName)</label>
+            <!-- NEU: Echte Verknüpfung der User-IDs und Namen für deinen getOrCreateUser-Check -->
+            <label>Eindeutige ID (actorId)</label>
+            <input type="text" id="actorId" value="discord-123456789">
+
+            <label>Spieler-Charakter (actorName)</label>
             <input type="text" id="actorName" value="TestUser">
+
+            <label>Anzeigename / Discord-Name (playerName)</label>
+            <input type="text" id="playerName" value="DerSchreckenVomServer">
+
+            <br>
+            <hr style="border: 0; border-top: 1px dashed #444; margin: 15px 0;">
 
             <label>Theme (z.B. kombo-theme,zufall)</label>
             <input type="text" id="theme" value="kombo-theme,zufall">
@@ -74,11 +84,14 @@ $currentVersion = $config["current_version"];
             <label>Welt</label>
             <input type="text" id="world" value="Test-Umgebung">
 
+            <label>Server ID (server_id)</label>
+            <input type="text" id="serverId" value="123456789012345678">
+
             <label>Skript Version (Test-Eingabe)</label>
-<div class="input-group">
-    <input type="text" id="scriptVersion" value="<?php echo $currentVersion; ?>">
-    <button type="button" class="btn-small" onclick="document.getElementById('scriptVersion').value='1.1'" title="Alte Version testen">v1.1</button>
-</div>
+            <div class="input-group">
+                <input type="text" id="scriptVersion" value="<?php echo $currentVersion; ?>">
+                <button type="button" class="btn-small" onclick="document.getElementById('scriptVersion').value='1.1'" title="Alte Version testen">v1.1</button>
+            </div>
 
             <button type="button" id="sendBtn" onclick="sendRequest()">Senden & Analysieren</button>
         </form>
@@ -88,9 +101,8 @@ $currentVersion = $config["current_version"];
         <div class="debug-title">🕵️ Rohdaten & Fehler-Analyse</div>
         <div>Status: <span id="debugStatus">-</span></div>
 
-
-    <label>Sende-Payload:</label>
-    <pre id="payloadDisplay">{}</pre>
+        <label>Sende-Payload:</label>
+        <pre id="payloadDisplay">{}</pre>
 
         <label>PHP-Output / Roh-Antwort:</label>
         <pre id="rawResponse">Hier erscheinen PHP-Fehler oder das Roh-JSON...</pre>
@@ -106,7 +118,6 @@ $currentVersion = $config["current_version"];
 
     <label>Generierter HTML Code:</label>
     <pre id="htmlCodeDisplay">Warte auf Antwort...</pre>
-
 </div>
 
 <script>
@@ -137,8 +148,12 @@ async function sendRequest() {
 
     const chosenTheme = document.getElementById('theme').value;
 
+    // Erweitertes Payload-Objekt mit deinen neuen Testfeldern
     const payload = {
+        actorId: document.getElementById('actorId').value,
         actorName: document.getElementById('actorName').value,
+        playerName: document.getElementById('playerName').value,
+        serverId: document.getElementById('serverId').value,
         theme: chosenTheme,
         world: document.getElementById('world').value,
         version: "1.0.0-debug",
@@ -146,14 +161,13 @@ async function sendRequest() {
         ownedCards: document.getElementById('ownedCards').value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n))
     };
 
-    // NEU: Wenn PREVIEW_MODE gewählt ist, hängen wir eine Test-Konfiguration an
     if (chosenTheme.trim().toUpperCase() === "PREVIEW_MODE") {
         payload.customConfig = {
-            "colorPrimary": "#3b82f6",          // Blaues Haupt-Theme für den Test
+            "colorPrimary": "#3b82f6",
             "colorGlowMain": "rgba(59, 130, 246, 0.4)",
             "colorBoltCore": "#ffffff",
             "colorAccent": "#ef4444",
-            "colorBg": "#0f172a",               // Dunkles Schiefer-Blau
+            "colorBg": "#0f172a",
             "colorBgCard": "rgba(255, 255, 255, 0.03)",
             "shadowColor": "rgba(0, 0, 0, 0.8)",
             "colorTextMain": "#f8fafc",
@@ -193,7 +207,6 @@ async function sendRequest() {
         const duration = (performance.now() - startTime).toFixed(0);
         const textResponse = await response.text();
 
-        // Anzeige der Rohdaten (JETZT MEHRZEILIG)
         rawPre.innerText = textResponse;
         generateHexDump(textResponse, hexDiv);
 
@@ -201,8 +214,6 @@ async function sendRequest() {
             statusSpan.innerHTML = `<span class="status-badge status-ok">HTTP ${response.status} OK (${duration}ms)</span>`;
 
             try {
-                // Falls PHP Fehler vor dem JSON stehen, schlägt JSON.parse fehl.
-                // Das ist gut, denn dann siehst du den Fehler oben in "rawResponse".
                 const data = JSON.parse(textResponse);
                 if (data.html) {
                     htmlCodePre.innerText = data.html;

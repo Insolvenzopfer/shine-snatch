@@ -4,7 +4,11 @@
 // --- USER KONFIGURATION ---
 // Themes auswahl unter https://www.9ps.eu/shine-snatch/themes.php
 const currentScriptVersion = "1.4"; // Deine aktuelle Version
-const activeTheme = "Kombo-Theme,Zufall";
+//const activeTheme = "Kombo-Theme,Zufall";
+const activeTheme =
+  typeof playerTheme !== "undefined" && playerTheme
+    ? playerTheme
+    : "Kombo-Theme,Zufall";
 
 // URL zum aufruf der Karten
 const apiUrl = "https://www.9ps.eu/shine-snatch/shine-snatch.php";

@@ -25,12 +25,44 @@ $pdo = getDatabaseConnection();
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
 
 // ==========================================================
-// HILFSFUNKTION: User laden oder dynamisch anlegen (Foundry-optimiert)
+// HILFSFUNKTION: Prüft, ob ein User bereits in der DB existiert
+// ==========================================================
+function userExists($targetString, $pdo)
+{
+    // Falls es ein Discord-Ping ist, extrahieren wir die reine ID
+    if (
+        str_starts_with($targetString, "<@") &&
+        str_ends_with($targetString, ">")
+    ) {
+        $cleanId = preg_replace("/[^0-9]/", "", $targetString);
+        $stmt = $pdo->prepare(
+            "SELECT 1 FROM snatch_users WHERE actor_id = ? LIMIT 1",
+        );
+        $stmt->execute([$cleanId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    // Ansonsten suchen wir im actor_name ODER display_name (case-insensitive)
+    $stmt = $pdo->prepare("
+        SELECT 1 FROM snatch_users
+        WHERE LOWER(actor_name) = ? OR LOWER(display_name) = ?
+        LIMIT 1
+    ");
+    $stmt->execute([strtolower($targetString), strtolower($targetString)]);
+    return (bool) $stmt->fetchColumn();
+}
+
+// ==========================================================
+// HILFSFUNKTION: User laden oder dynamisch anlegen (Zentral mit Discord-Ping Erkennung)
 // ==========================================================
 function getOrCreateUser($input, $pdo)
 {
+    global $config;
     $actorId = !empty($input["actorId"])
         ? trim((string) $input["actorId"])
+        : null;
+    $serverId = !empty($input["serverId"])
+        ? trim((string) $input["serverId"])
         : null;
     $actorName = !empty($input["actorName"])
         ? trim((string) $input["actorName"])
@@ -39,37 +71,125 @@ function getOrCreateUser($input, $pdo)
         ? trim((string) $input["playerName"])
         : $actorName;
 
+    // --- ZENTRALE DISCORD-PING ERKENNUNG ---
+    // Falls actorName oder playerName fälschlicherweise ein Discord-Ping ist (<@123456789>)
+    if ($actorId === null) {
+        if (
+            str_starts_with($actorName, "<@") &&
+            str_ends_with($actorName, ">")
+        ) {
+            $actorId = preg_replace("/[^0-9]/", "", $actorName);
+        } elseif (
+            str_starts_with($playerName, "<@") &&
+            str_ends_with($playerName, ">")
+        ) {
+            $actorId = preg_replace("/[^0-9]/", "", $playerName);
+        }
+    }
+
     $finalActorId = $actorId ?? trim((string) $actorName);
 
-    // Suche in der Datenbank
-    $stmt = $pdo->prepare("SELECT * FROM snatch_users WHERE actor_id = ?");
-    $stmt->execute([$finalActorId]);
+    // Suche in der Datenbank anhand der (jetzt sauber ermittelten) ID
+    $stmt = $pdo->prepare(
+        "SELECT * FROM snatch_users WHERE actor_id = ? AND (server_id = ? OR server_id IS NULL OR server_id = '') LIMIT 1",
+    );
+    $stmt->execute([$finalActorId, $serverId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user) {
-        // User gefunden: Update der Namen, falls sie sich geändert haben
-        $stmtUpdate = $pdo->prepare(
-            "UPDATE snatch_users SET actor_name = ?, display_name = ? WHERE actor_id = ?",
-        );
-        $stmtUpdate->execute([$actorName, $playerName, $finalActorId]);
+        // Falls wir den User über einen Ping gefunden haben, wollen wir seinen actor_name
+        // nicht mit "<@517115...>" überschreiben! Wir updaten nur, wenn es ein echter Name ist.
+        $isNameValid = !str_starts_with($actorName, "<@") && !empty($actorName);
+        $isPlayerValid =
+            !str_starts_with($playerName, "<@") && !empty($playerName);
 
-        // Aktualisierte Namen ins bestehende $user Array schreiben, ohne die echte ID oder das gespeicherte Theme zu verlieren
-        $user["actor_name"] = $actorName;
-        $user["display_name"] = $playerName;
+        $newActorName = $isNameValid ? $actorName : $user["actor_name"];
+        $newDisplayName = $isPlayerValid ? $playerName : $user["display_name"];
+
+        // --- FIX 1: $shouldUpdateServerId hier sauber definieren ---
+        // Falls in der DB noch keine Server-ID vorhanden ist, wir jetzt aber eine mitbekommen, wollen wir updaten
+        $shouldUpdateServerId = empty($user["server_id"]) && !empty($serverId);
+
+        // Nur updaten, wenn sich tatsächlich ein echter Textname oder die Server-ID geändert hat
+        if (
+            $user["actor_name"] !== $newActorName ||
+            $user["display_name"] !== $newDisplayName ||
+            $shouldUpdateServerId
+        ) {
+            $stmtUpdate = $pdo->prepare(
+                "UPDATE snatch_users SET actor_name = ?, display_name = ?, server_id = ? WHERE actor_id = ?",
+            );
+            $stmtUpdate->execute([
+                $newActorName,
+                $newDisplayName,
+                $serverId ?? ($user["server_id"] ?? ""),
+                $finalActorId,
+            ]);
+
+            $user["actor_name"] = $newActorName;
+            $user["display_name"] = $newDisplayName;
+            $user["server_id"] = $serverId ?? ($user["server_id"] ?? "");
+        }
 
         return $user;
     }
 
     // Neuer User: Anlage in der Datenbank
-    $stmtInsert = $pdo->prepare(
-        "INSERT INTO snatch_users (actor_id, actor_name, display_name) VALUES (?, ?, ?)",
-    );
-    $stmtInsert->execute([$finalActorId, $actorName, $playerName]);
+    // Falls wir hier nur die ID aus dem Ping haben, setzen wir einen temporären Namen ein
+    $insertActorName = !str_starts_with($actorName, "<@")
+        ? $actorName
+        : "User #" . substr($finalActorId, -4);
+    $insertPlayerName = !str_starts_with($playerName, "<@")
+        ? $playerName
+        : $insertActorName;
 
-    // DIREKT NOCHMAL LADEN: Damit sind alle Felder (auch Theme-Default 'Gold') enthalten
-    $stmt = $pdo->prepare("SELECT * FROM snatch_users WHERE actor_id = ?");
-    $stmt->execute([$finalActorId]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    // --- FIX 2: Sicherstellen, dass der String für die DB niemals echtes NULL ist ---
+    $finalServerId = $serverId ?? "";
+
+    $stmtInsert = $pdo->prepare(
+        "INSERT INTO snatch_users (actor_id, server_id, actor_name, display_name) VALUES (?, ?, ?, ?)",
+    );
+    $stmtInsert->execute([
+        $finalActorId,
+        $finalServerId,
+        $insertActorName,
+        $insertPlayerName,
+    ]);
+
+    // DIREKT NOCHMAL LADEN (damit Standardwerte wie Theme 'Gold' aktiv sind)
+    $stmt = $pdo->prepare(
+        "SELECT * FROM snatch_users WHERE actor_id = ? AND server_id = ?",
+    );
+    $stmt->execute([$finalActorId, $finalServerId]);
+    $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // === NEU: WILLKOMMENS-GESCHENK FÜR NEUE SPIELER ===
+    // Wir greifen hier global auf die $config zu, damit der Schalter funktioniert
+    global $config;
+    $giftEnabled = isset($config["newplayergift"])
+        ? (bool) $config["newplayergift"]
+        : false;
+
+    if ($giftEnabled && $newUser) {
+        // Karte generieren
+        $giftCard = generateWeightedCardFromDb($pdo, $config);
+
+        if ($giftCard) {
+            $stmtGift = $pdo->prepare(
+                "INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category) VALUES (?, ?, ?, ?, ?)",
+            );
+            $stmtGift->execute([
+                $newUser["id"], // Hier nutzen wir die auto-increment ID aus der DB
+                $giftCard["id"],
+                $giftCard["name"],
+                $giftCard["emoji"],
+                $giftCard["category"],
+            ]);
+            $newUser["gift_card"] = $giftCard;
+        }
+    }
+
+    return $newUser;
 }
 
 // ==========================================================
@@ -94,14 +214,25 @@ function generateWeightedCardFromDb(
 
     // FALL B: Keine Kategorie angegeben oder angegebene Kategorie existiert nicht -> Zufall
     if (!$category) {
-        $weightedPool = [];
-        for ($i = 1; $i <= 60; $i++) {
-            $weight = 61 - $i;
-            for ($w = 0; $w < $weight; $w++) {
-                $weightedPool[] = $i;
+        // Prüfen, ob die Gewichtung in der Config aktiv ist (Standard: true, falls nicht gesetzt)
+        $useWeighting = isset($config["gewichtung"])
+            ? (bool) $config["gewichtung"]
+            : true;
+
+        if ($useWeighting) {
+            // MIT ERHÖHUNG: Der alte gewichtete Pool (kleine IDs sind wahrscheinlicher)
+            $weightedPool = [];
+            for ($i = 1; $i <= 60; $i++) {
+                $weight = 61 - $i;
+                for ($w = 0; $w < $weight; $w++) {
+                    $weightedPool[] = $i;
+                }
             }
+            $drawnId = $weightedPool[array_rand($weightedPool)];
+        } else {
+            // OHNE ERHÖHUNG: Jede Zahl von 1 bis 60 hat die exakt gleiche Chance
+            $drawnId = rand(1, 60);
         }
-        $drawnId = $weightedPool[array_rand($weightedPool)];
 
         $stmt = $pdo->query(
             "SELECT * FROM snatch_game_card_types ORDER BY start_id DESC",
@@ -141,20 +272,29 @@ function generateWeightedCardFromDb(
 
         $name = $pool[array_rand($pool)];
 
-        // === NEU: Dynamischen Kartenzusatz aus der config.php anhängen ===
-        if (
-            !empty($config["kartenzusatz"]) &&
-            is_array($config["kartenzusatz"])
-        ) {
-            $zufallsZusatz =
-                $config["kartenzusatz"][array_rand($config["kartenzusatz"])];
-            $name .= " " . trim($zufallsZusatz);
+        // === Dynamischen Kartenzusatz aus der Datenbank anhängen ===
+        try {
+            // Holt exakt einen zufälligen Eintrag aus der snatch_kartenzusatz Tabelle
+            $zusatzStmt = $pdo->query(
+                "SELECT zusatzname FROM snatch_kartenzusatz ORDER BY RAND() LIMIT 1",
+            );
+            $zufallsZusatz = $zusatzStmt->fetchColumn();
+
+            if ($zufallsZusatz) {
+                $name .= " " . trim($zufallsZusatz);
+            }
+        } catch (PDOException $e) {
+            // Fallback, falls die Tabelle mal leer oder nicht erreichbar ist (verhindert Spielabsturz)
+            error_log(
+                "Fehler beim Laden des Kartenzusatzes: " . $e->getMessage(),
+            );
         }
 
-        if (strpos($category["name"] ?? "", "/") !== false) {
+        /*         if (strpos($category["name"] ?? "", "/") !== false) {
             $parts = explode("/", $category["name"]);
             $name .= " (Mächtiger " . trim($parts[array_rand($parts)]) . ")";
         }
+        */
     }
 
     return [
@@ -180,18 +320,6 @@ $theme = isset($input["theme"]) ? trim($input["theme"]) : "";
 if (str_starts_with(strtolower($theme), "set:")) {
     $chosenTheme = trim(substr($theme, 4));
 
-    // Datenbank-Validierung
-    $stmt = $pdo->prepare(
-        "SELECT theme_name FROM snatch_themes WHERE LOWER(theme_name) = ?",
-    );
-    $stmt->execute([strtolower($chosenTheme)]);
-    $dbThemeResult = $stmt->fetchColumn();
-
-    $isSpecialTheme = in_array(strtolower($chosenTheme), [
-        "zufall",
-        "kombo-theme",
-    ]);
-
     if (empty($chosenTheme)) {
         $pdo->prepare(
             "UPDATE snatch_users SET theme = 'Gold' WHERE id = ?",
@@ -199,23 +327,78 @@ if (str_starts_with(strtolower($theme), "set:")) {
         $theme = "Gold";
         $input["theme"] = "Gold";
         $msg = "♻️ Dein Standard-Theme wurde auf Gold zurückgesetzt.";
-    } elseif ($dbThemeResult || $isSpecialTheme) {
-        $actualThemeName = $dbThemeResult ?: $chosenTheme;
+    }
+    // --- FALL 1: KOMMA VORHANDEN (Beliebige Kombination) ---
+    elseif (str_contains($chosenTheme, ",")) {
+        $themes = array_map("trim", explode(",", $chosenTheme));
+        $validatedThemes = [];
 
-        // In DB speichern (nutzt die jetzt korrekte interne ID)
+        foreach ($themes as $t) {
+            $tLower = strtolower($t);
+
+            // Wenn es ein Spezial-Theme ist, einfach so übernehmen
+            if ($tLower === "zufall" || $tLower === "kombo-theme") {
+                $validatedThemes[] = $tLower; // oder $t für Originalschreibweise
+            } else {
+                // Ansonsten in der Datenbank nachschlagen
+                $stmt = $pdo->prepare(
+                    "SELECT theme_name FROM snatch_themes WHERE LOWER(theme_name) = ?",
+                );
+                $stmt->execute([$tLower]);
+                $dbThemeResult = $stmt->fetchColumn();
+
+                if (!$dbThemeResult) {
+                    echo json_encode([
+                        "text" => "❌ Das Theme **{$t}** innerhalb deiner Auswahl existiert nicht!",
+                    ]);
+                    exit();
+                }
+                $validatedThemes[] = $dbThemeResult; // Korrekte Schreibweise aus der DB
+            }
+        }
+
+        // Alle validierten Teile wieder mit Komma zusammenfügen
+        $finalThemeString = implode(",", $validatedThemes);
+
         $pdo->prepare(
             "UPDATE snatch_users SET theme = ? WHERE id = ?",
-        )->execute([$actualThemeName, $dbUser["id"]]);
+        )->execute([$finalThemeString, $dbUser["id"]]);
 
-        $theme = $actualThemeName;
-        $input["theme"] = $actualThemeName; // Wichtig für snatch-game.php
+        $theme = $finalThemeString;
+        $input["theme"] = $finalThemeString;
 
-        $msg = "🎨 Theme erfolgreich für dich als Standard gespeichert: **{$actualThemeName}**!";
-    } else {
-        echo json_encode([
-            "text" => "❌ Das Theme **{$chosenTheme}** existiert nicht!",
+        $msg = "🎨 Deine Theme-Auswahl wurde erfolgreich gespeichert: **{$finalThemeString}**!";
+    }
+    // --- FALL 2: KEIN KOMMA VORHANDEN (Einzel-Theme) ---
+    else {
+        $stmt = $pdo->prepare(
+            "SELECT theme_name FROM snatch_themes WHERE LOWER(theme_name) = ?",
+        );
+        $stmt->execute([strtolower($chosenTheme)]);
+        $dbThemeResult = $stmt->fetchColumn();
+
+        $isSpecialTheme = in_array(strtolower($chosenTheme), [
+            "zufall",
+            "kombo-theme",
         ]);
-        exit();
+
+        if ($dbThemeResult || $isSpecialTheme) {
+            $actualThemeName = $dbThemeResult ?: $chosenTheme;
+
+            $pdo->prepare(
+                "UPDATE snatch_users SET theme = ? WHERE id = ?",
+            )->execute([$actualThemeName, $dbUser["id"]]);
+
+            $theme = $actualThemeName;
+            $input["theme"] = $actualThemeName;
+
+            $msg = "🎨 Theme erfolgreich für dich als Standard gespeichert: **{$actualThemeName}**!";
+        } else {
+            echo json_encode([
+                "text" => "❌ Das Theme **{$chosenTheme}** existiert nicht!",
+            ]);
+            exit();
+        }
     }
 }
 
@@ -223,13 +406,9 @@ if (str_starts_with(strtolower($theme), "set:")) {
 // REGEL 2: GIVECARD (Schenken via SQL-IDs)
 // ==========================================================
 elseif (str_starts_with(strtolower($theme), "givecard")) {
-    // Den String bei Leerzeichen aufteilen (z.B. "givecard", "4", "insolvenzopfer")
     $parts = preg_split("/\s+/", trim($theme));
-
-    // Parameter manuell aus den Teilen zuweisen
     $targetCardId = isset($parts[1]) ? (int) $parts[1] : 0;
 
-    // Falls der Spielername aus mehreren Wörtern mit Leerzeichen besteht, fügen wir den Rest wieder zusammen
     $targetPlayerName = "";
     if (count($parts) > 2) {
         $targetPlayerName = implode(" ", array_slice($parts, 2));
@@ -237,13 +416,41 @@ elseif (str_starts_with(strtolower($theme), "givecard")) {
 
     if ($targetCardId <= 0 || empty($targetPlayerName)) {
         echo json_encode([
-            "text" => "⚠️ Syntax: `!snatch givecard [KartenID] [Spielername]`",
+            "text" =>
+                "⚠️ Syntax: `!snatch givecard [KartenID] [Spielername/Erwähnung]`",
         ]);
         exit();
     }
 
-    // Ziel-User aus DB laden oder temporär anlegen (Foundry/Discord Name-Fallback)
-    $targetUser = getOrCreateUser(["actorName" => $targetPlayerName], $pdo);
+    // --- NEU: EXISTENZ-CHECK GEGEN TIPPFEHLER ---
+    if (!userExists($targetPlayerName, $pdo)) {
+        echo json_encode([
+            "text" => "❌ Der Spieler **{$targetPlayerName}** wurde im Snatch-System nicht gefunden! Bitte überprüfe die Schreibweise oder lass ihn erst einmal `!snatch` spielen.",
+        ]);
+        exit();
+    }
+
+    // Ab hier ist sicher: Der User existiert! Wir bereiten die Parameter für das Laden vor
+    $userParams = [
+        "serverId" => !empty($input["serverId"])
+            ? trim((string) $input["serverId"])
+            : $dbUser["server_id"] ?? "", // <-- NEU
+    ];
+    if (
+        str_starts_with($targetPlayerName, "<@") &&
+        str_ends_with($targetPlayerName, ">")
+    ) {
+        $userParams["actorId"] = preg_replace(
+            "/[^0-9]/",
+            "",
+            $targetPlayerName,
+        );
+    } else {
+        $userParams["actorName"] = $targetPlayerName;
+    }
+
+    // Ziel-User sicher aus DB laden
+    $targetUser = getOrCreateUser($userParams, $pdo);
 
     // Generiere die echten Discord-Pings über die actor_id der Profile
     $actorPing = "<@{$dbUser["actor_id"]}>";
@@ -355,8 +562,34 @@ elseif (str_starts_with(strtolower($theme), "createcard")) {
         exit();
     }
 
-    // Ziel-User generieren / holen
-    $targetUser = getOrCreateUser(["actorName" => $targetPlayerName], $pdo);
+    // ==========================================
+    // SPIELER-DATEN FÜR MULTI-SERVER AUFBEREITEN
+    // ==========================================
+    $currentServerId = !empty($input["serverId"])
+        ? trim((string) $input["serverId"])
+        : $dbUser["server_id"] ?? "";
+
+    $userParams = [
+        "serverId" => $currentServerId,
+    ];
+
+    if (
+        str_starts_with($targetPlayerName, "<@") &&
+        str_ends_with($targetPlayerName, ">")
+    ) {
+        $userParams["actorId"] = preg_replace(
+            "/[^0-9]/",
+            "",
+            $targetPlayerName,
+        );
+        // Fallback-Name für getOrCreateUser, falls der Spieler komplett neu angelegt werden muss
+        $userParams["actorName"] = "Discord-User-" . $userParams["actorId"];
+    } else {
+        $userParams["actorName"] = $targetPlayerName;
+    }
+
+    // Ziel-User generieren / holen (Sicher isoliert pro Server-ID)
+    $targetUser = getOrCreateUser($userParams, $pdo);
     $actorPing = "<@{$dbUser["actor_id"]}>";
     $targetPing = "<@{$targetUser["actor_id"]}>";
 
@@ -395,7 +628,7 @@ elseif (str_starts_with(strtolower($theme), "createcard")) {
 
     echo json_encode([
         "text" =>
-            "🧙‍♂️ **Snatchmaster-Erschaffung!** Admin {$actorPing} lässt aus dem Nichts eine Karte für {$targetPing} erscheinen!\n" .
+            "🧙‍♂️ **Snatch-Erschaffung!** Der Artefakt-Schmied {$actorPing} lässt aus dem Nichts eine Karte für {$targetPing} erscheinen!\n" .
             "Erhalten: {$generatedCard["emoji"]} **{$generatedCard["name"]}** (#{$generatedCard["id"]} | *{$generatedCard["category"]}*)!",
     ]);
     exit();
@@ -432,6 +665,17 @@ if (
     strtolower($theme) === "get_daily_winner" ||
     strtolower($theme) === "winner"
 ) {
+    $allowedMasters = is_array($config["snatchmaster"])
+        ? $config["snatchmaster"]
+        : [];
+    if (!in_array($dbUser["actor_id"], $allowedMasters)) {
+        echo json_encode([
+            "text" =>
+                "❌ Du hast keine Berechtigung, diesen Befehl auszuführen!",
+        ]);
+        exit();
+    }
+
     $world = $input["world"] ?? "Unbekannt";
 
     if (empty($world) || $world === "Unbekannt") {
@@ -598,16 +842,16 @@ elseif (empty($theme) || str_starts_with(strtolower($theme), "set:")) {
 else {
     $lowerTheme = strtolower($theme);
 
-    // Prüfe zuerst, ob es sich um ein dynamisches Sonder-Theme handelt (enthält kombo-theme oder zufall)
+    // Prüfe, ob es sich um ein dynamisches Sonder-Theme ODER eine Wunsch-Kommaliste handelt
     if (
         str_contains($lowerTheme, "kombo-theme") ||
-        str_contains($lowerTheme, "zufall")
+        str_contains($lowerTheme, "zufall") ||
+        str_contains($lowerTheme, ",") // <-- NEU: Kommalisten ebenfalls als dynamisch durchwinken!
     ) {
-        // Wir behalten den originalen String exakt bei (z.B. "kombo-theme,Barde")
-        // und überspringen die DB-Validierung für Einzel-Themes
+        // Wir behalten den originalen String exakt bei (z.B. "Barde,Warmage,Krark")
         $input["theme"] = $theme;
     } else {
-        // Normales Theme aus der Datenbank abfragen
+        // Normales Einzel-Theme aus der Datenbank abfragen
         $stmt = $pdo->prepare(
             "SELECT theme_name FROM snatch_themes WHERE LOWER(theme_name) = ?",
         );
@@ -678,23 +922,38 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
 $shineResponse = curl_exec($ch);
 $responseArr = json_decode($shineResponse, true) ?? [];
 
+// === HIER DIE ERWEITERUNG FÜR DAS WILLKOMMENS-GESCHENK ===
+// Wir prüfen, ob im $dbUser (der oben bei $dbUser = getOrCreateUser(...) geladen wurde)
+// ein Geschenk hinterlegt wurde.
+if (!empty($dbUser["gift_card"])) {
+    $card = $dbUser["gift_card"];
+
+    // Wir fügen das Geschenk in das $responseArr ein, das an den Bot geht
+    $responseArr["gift"] = [
+        "message" =>
+            "✨ **Willkommensgeschenk!** Du hast deine erste Karte erhalten:",
+        "card_name" => $card["name"],
+        "card_emoji" => $card["emoji"],
+        "card_category" => $card["category"],
+    ];
+}
+
 // ==========================================================
 // LIVE DETAILED LOGGING (Datei-Backup UND DB-Insert)
 // ==========================================================
 $world = $input["world"] ?? "Unbekannt";
+//$excludedWorlds = ["keine"];
 
 $excludedWorlds = [
     "Theme-Editor",
+    "Dashboard-Admin",
     "Dashboard",
     "Dashboard-EyeCatcher",
     "Test-System",
     "Vorschau",
     "Test-Umgebung",
 ];
-/*
-$excludedWorlds = [];
-*/
-// Prüfe explizit, ob wir Punkte haben (Spieler hat eine Aktion durchgeführt)
+
 // Prüfe explizit, ob wir Punkte haben (Spieler hat eine Aktion durchgeführt)
 if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     // IP-Adresse ermitteln
@@ -710,10 +969,8 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     $anonIp = "UNKNOWN";
     if ($remoteIp !== "UNKNOWN") {
         if (filter_var($remoteIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            // Für IPv4 (z.B. 192.168.1.123 -> 192.168.1.xxx)
             $anonIp = preg_replace('/[0-9]+$/', "xxx", $remoteIp);
         } elseif (filter_var($remoteIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            // Für IPv6 (z.B. 2001:db8:85a3::8a2e:370:7334 -> 2001:db8:85a3::8a2e:370:xxxx)
             $parts = explode(":", $remoteIp);
             if (count($parts) > 1) {
                 $parts[count($parts) - 1] = "xxxx";
@@ -723,6 +980,10 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
             }
         }
     }
+
+    $serverId = !empty($input["serverId"])
+        ? trim((string) $input["serverId"])
+        : "";
 
     $points = (int) ($responseArr["total_points"] ?? 0);
     $handIds = isset($responseArr["hand_ids"])
@@ -736,19 +997,29 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     $chanName = $input["version"] ?? "Foundry-Chat";
     $reqUrl = $input["url"] ?? "Keine-URL";
 
+    // NEU: Sicherstellen, dass ein gültiger String für das Theme vorliegt
+    // Falls das ermittelte Theme ein Array aus deiner Config-Funktion ist, nimm den 'key'
+    $logTheme = "Gold";
+    if (isset($theme)) {
+        $logTheme = is_array($theme) ? $theme["key"] ?? "Gold" : $theme;
+    }
+
     try {
-        $sql = "INSERT INTO snatch_logs (ip_address, server_name, channel_name, url, user_id, total_points, pulled_cards, owned_cards)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        // Spalte 'theme' im SQL-Query hinzugefügt
+        $sql = "INSERT INTO snatch_logs (ip_address, server_id, server_name, channel_name, url, user_id, total_points, pulled_cards, owned_cards, theme)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmtLog = $pdo->prepare($sql);
         $stmtLog->execute([
             $anonIp,
+            $serverId,
             $world,
             $chanName,
             $reqUrl,
-            (int) $dbUser["id"], // Reicht die numerische interne User-ID ein
+            (int) $dbUser["id"],
             $points,
             (string) $handIds,
             (string) $ownedIds,
+            (string) $logTheme, // <-- NEU: Hier wird der Theme-String übergeben
         ]);
     } catch (PDOException $e) {
         error_log("Snatch-Log-Fehler: " . $e->getMessage());
@@ -767,6 +1038,7 @@ if (empty($shineResponse)) {
     ]);
     exit();
 }
+
 if (empty($responseArr)) {
     echo json_encode([
         "error" => "JSON-Fehler: snatch-game.php lieferte kein gültiges JSON.",
@@ -774,6 +1046,6 @@ if (empty($responseArr)) {
     ]);
     exit();
 }
-// --------------------------------------------------
 
+// Finale Ausgabe an die Foundry-Anwendung / den Bot senden
 echo json_encode($responseArr);

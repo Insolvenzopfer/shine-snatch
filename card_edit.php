@@ -248,6 +248,48 @@ foreach ($groups as $g) {
         .modal-item.active { border: 2px solid var(--primary); background: rgba(44, 178, 76, 0.2); box-shadow: 0 0 10px rgba(44, 178, 76, 0.3); }
         .sortable-ghost { opacity: 0.4; background: var(--accent) !important; }
         .drag-handle:hover { color: var(--primary) !important; }
+        .nav-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .nav-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-family: 'Georgia', serif;
+            font-size: 14px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        /* Stil für den Zufallsnamen-Button */
+        .btn-accent {
+            background: #2a2a2a;
+            color: #e67e22; /* Oder deine var(--accent) */
+            border: 1px solid #3a2f1d;
+        }
+        .btn-accent:hover {
+            background: #3a2f1d;
+            color: #fff;
+            border-color: #e67e22;
+        }
+
+        /* Stil für den Logout-Button */
+        .btn-danger {
+            background: #1e1e1e;
+            color: #c0392b; /* Oder deine var(--danger) */
+            border: 1px solid #333;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+            color: #fff;
+            border-color: #ff4d4d;
+        }
     </style>
 </head>
 <body>
@@ -255,7 +297,18 @@ foreach ($groups as $g) {
 <div class="container">
     <div style="display:flex; justify-content: space-between; align-items: center;">
         <h1>SNATCH DATABASE CONTROL</h1>
-        <a href="?logout=1" style="color: var(--danger); text-decoration: none;">✖ Logout</a>
+        <div class="nav-container">
+            <a href="cardnames.php" class="nav-btn btn-accent">
+                📖 Archiv der Zusätze
+            </a>
+            <a href="newcard.php" class="nav-btn btn-accent">
+                🃏 Kartengewichtung
+            </a>
+
+            <a href="?logout=1" class="nav-btn btn-danger">
+                🚪 Sanktum verlassen
+            </a>
+        </div>
     </div>
 
     <?php if ($message) {
