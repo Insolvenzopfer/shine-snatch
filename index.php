@@ -39,7 +39,7 @@ $currentVersion = $config["current_version"];
 
         /* --- SIDEBAR --- */
         .sidebar {
-            width: 350px;
+            width: 250px;
             background: var(--panel-bg);
             backdrop-filter: blur(10px);
             border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -51,7 +51,7 @@ $currentVersion = $config["current_version"];
 
         .brand { text-align: center; margin-bottom: 50px; cursor: pointer; }
         .logo {
-            width: 300px;
+            width: 220px;
             filter: drop-shadow(0 0 20px rgba(44, 178, 76, 0.3));
             transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }

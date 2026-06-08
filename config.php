@@ -7,6 +7,7 @@ return [
     "default_theme" => "Gold",
     "gewichtung" => false,
     "newplayergift" => true, // true = Neue Spieler erhalten sofort 1 Karte gratis, false = ausgeschaltet
+    "activePack" => "", // welche textblöcke sollen genommen werden, leer lassen für zufall, wenn es keinen passenden gibt wird ein zufälliger genommen
     "admin_password_hash" =>
         '$2y$12$VQBvnaRmyhYYorVtby/J9ukVJqq7lT.7P5eST.UrzodjdJ8Ki9iZC',
     "snatchmaster" => [

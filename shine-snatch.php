@@ -20,6 +20,7 @@ header("Content-Type: application/json; charset=utf-8");
 // 1. Config & Zentrale DB-Verbindung laden
 $config = require "config.php";
 require_once "db.php";
+require_once "../php/telegramsend.php";
 $pdo = getDatabaseConnection();
 
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
@@ -50,6 +51,72 @@ function userExists($targetString, $pdo)
     ");
     $stmt->execute([strtolower($targetString), strtolower($targetString)]);
     return (bool) $stmt->fetchColumn();
+}
+
+/**
+ * Holt einen zufälligen Text basierend auf Paket und Gruppe mit intelligentem Fallback.
+ *
+ * @param PDO $pdo Die Datenbankverbindung
+ * @param string $pack Das gewünschte Text-Paket (z.B. 'gruppenname_1')
+ * @param string $group Die benötigte Rolle (z.B. 'winner_champion')
+ * @param array $replacements Die Platzhalter zum Ersetzen
+ * @return string Der fertige Text
+ */
+function getRandomSnatchText(
+    PDO $pdo,
+    string $pack,
+    string $group,
+    array $replacements = [],
+): string {
+    try {
+        // --- SCHRITT 1: Exakte Suche (Gewünschtes Paket + Richtige Gruppe) ---
+        $stmt = $pdo->prepare(
+            "SELECT content FROM snatch_texts WHERE text_pack = ? AND text_group = ?",
+        );
+        $stmt->execute([$pack, $group]);
+        $texts = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // --- SCHRITT 2: Fallback auf das 'default' Paket für diese Gruppe ---
+        if (empty($texts) && $pack !== "default") {
+            $stmt = $pdo->prepare(
+                "SELECT content FROM snatch_texts WHERE text_pack = 'default' AND text_group = ?",
+            );
+            $stmt->execute([$group]);
+            $texts = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
+        // --- SCHRITT 3: Fallback auf IRGENDEIN Paket, Hauptsache die Gruppe stimmt ---
+        if (empty($texts)) {
+            $stmt = $pdo->prepare(
+                "SELECT content FROM snatch_texts WHERE text_group = ?",
+            );
+            $stmt->execute([$group]);
+            $texts = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
+        // --- SCHRITT 4: Letzter Notnagel (Die DB hat gar nichts zu dieser Gruppe) ---
+        if (empty($texts)) {
+            $stmt = $pdo->query("SELECT content FROM snatch_texts");
+            $texts = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (empty($texts)) {
+                return "⚠️ [Die Text-Datenbank ist absolut leer!]";
+            }
+        }
+
+        // Zufälligen Text aus den ermittelten Treffern auswählen
+        $chosenText = $texts[array_rand($texts)];
+
+        // Platzhalter ersetzen
+        return str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $chosenText,
+        );
+    } catch (PDOException $e) {
+        error_log("Fehler in getRandomSnatchText: " . $e->getMessage());
+        return "❌ Fehler beim Laden des Textes.";
+    }
 }
 
 // ==========================================================
@@ -648,9 +715,14 @@ elseif (str_starts_with(strtolower($theme), "createcard")) {
     ]);
 
     echo json_encode([
-        "text" =>
-            "🧙‍♂️ **Snatch-Erschaffung!** Der Artefakt-Schmied {$actorPing} lässt aus dem Nichts eine Karte für {$targetPing} erscheinen!\n" .
-            "Erhalten: {$generatedCard["emoji"]} **{$generatedCard["name"]}** (#{$generatedCard["id"]} | *{$generatedCard["category"]}*)!",
+        "text" => getRandomSnatchText($pdo, $activePack, "createcard", [
+            "{actorPing}" => $actorPing,
+            "{targetPing}" => $targetPing,
+            "{generatedCardemoji}" => $generatedCard["emoji"],
+            "{generatedCardname}" => $generatedCard["name"],
+            "{generatedCardid}" => $generatedCard["id"],
+            "{generatedCardcategory}" => $generatedCard["category"],
+        ]),
     ]);
     exit();
 }
@@ -680,6 +752,20 @@ elseif (strtolower($theme) === "showcards") {
 }
 
 // ==========================================================
+// REGEL 3b: SHOWTHEME (Aktives Theme des Users separat abfragen)
+// ==========================================================
+elseif (strtolower($theme) === "showtheme") {
+    // Das aktuell gesetzte Theme aus dem bereits geladenen $dbUser-Objekt auslesen
+    // Falls das Feld aus irgendeinem Grund leer ist, nutzen wir 'Gold' als Standard-Fallback
+    $currentTheme = !empty($dbUser["theme"]) ? $dbUser["theme"] : "Gold";
+
+    echo json_encode([
+        "text" => "🎨 {$actorPing}, dein aktuell ausgerüstetes Theme ist: **{$currentTheme}**",
+    ]);
+    exit();
+}
+
+// ==========================================================
 // REGEL 4: GET_DAILY_WINNER / WINNER (Tages-Event Auswertung)
 // ==========================================================
 if (
@@ -691,8 +777,11 @@ if (
         : [];
     if (!in_array($dbUser["actor_id"], $allowedMasters)) {
         echo json_encode([
-            "text" =>
-                "❌ Du hast keine Berechtigung, diesen Befehl auszuführen!",
+            "text" => getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "no_permission",
+            ),
         ]);
         exit();
     }
@@ -701,8 +790,11 @@ if (
 
     if (empty($world) || $world === "Unbekannt") {
         echo json_encode([
-            "text" =>
-                "❌ Keine gültigen Serverdaten (World) für die Auswertung vorhanden.",
+            "text" => getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "no_data",
+            ),
         ]);
         exit();
     }
@@ -711,6 +803,8 @@ if (
         // ANTI-CHEAT-ABFRAGE:
         // Holt für jeden User ausschließlich das ALLERERSTE Spiel des heutigen Tages (MIN(l.id))
         // und sortiert die Liste nach den Punkten absteigend.
+        // aktuell nur der aktuelle tag,für die letzten 24 h , den where in das hier ändern
+        // WHERE server_name = ? AND created_at >= NOW() - INTERVAL 1 DAY
         $stmtWinner = $pdo->prepare("
             SELECT l.*, u.display_name, u.actor_id
             FROM snatch_logs l
@@ -728,7 +822,14 @@ if (
 
         if (empty($todayLogs)) {
             echo json_encode([
-                "text" => "📅 **Tages-Event:** Für den Server **{$world}** wurden heute noch keine gültigen Event-Spiele aufgezeichnet.",
+                getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "no_world_data",
+                    [
+                        "{world}" => $world,
+                    ],
+                ),
             ]);
             exit();
         }
@@ -745,14 +846,34 @@ if (
         // Prüfen, ob die höchste Punktzahl mehrfach vorkommt
         $winnerTie = $pointCounts[$winnerPoints] > 1;
 
-        $outputMsg = "🏆 **Tages-Event Auswertung für {$world}** 🏆\n\n";
+        $outputMsg = getRandomSnatchText(
+            $pdo,
+            $config["activePack"],
+            "daily_start",
+            [
+                "{world}" => $world,
+            ],
+        );
 
         if ($winnerTie) {
-            $outputMsg .= "🤝 **Unentschieden an der Spitze!** Mehrere Spieler haben Gleichstand mit **{$winnerPoints} Punkten** erreicht. Daher gewinnt heute niemand eine Bonuskarte!\n\n";
+            $outputMsg .= getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "daily_winner_draw",
+                [
+                    "{winnerPoints}" => $winnerPoints,
+                ],
+            );
         } else {
-            $outputMsg .=
-                "Der heutige Champion ist {$winnerPing} mit fantastischen **{$winnerPoints} Punkten**! 🎉\n" .
-                "*(Gewertet wurde fairerweise nur das jeweils erste Spiel des Tages jedes Teilnehmers!)*\n";
+            $outputMsg .= getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "daily_winner",
+                [
+                    "{winnerPing}" => $winnerPing,
+                    "{winnerPoints}" => $winnerPoints,
+                ],
+            );
 
             // === NEU: KARTE FÜR DEN GEWINNER GENERIEREN & SPEICHERN ===
             // Eine gewichtete, zufällige Karte aus der DB generieren
@@ -768,7 +889,15 @@ if (
             ]);
 
             if ($stmtCheckWinnerCard->fetch()) {
-                $outputMsg .= "✨ **Kartenglück im Unglück:** Der Champion hätte die Karte {$rewardCard["emoji"]} **{$rewardCard["name"]}** gewonnen, besaß diese aber bereits. Das Album bleibt unverändert! 🃏\n\n";
+                $outputMsg .= getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_winner_same_card",
+                    [
+                        "{rewardCardemoji}" => $rewardCard["emoji"],
+                        "{rewardCardname}" => $rewardCard["name"],
+                    ],
+                );
             } else {
                 // Karte in die Datenbank des Gewinners eintragen
                 $stmtInsertWinnerCard = $pdo->prepare("
@@ -783,7 +912,17 @@ if (
                     $rewardCard["category"],
                 ]);
 
-                $outputMsg .= "🎁 **Siegesprämie erhalten:** Als Belohnung materialisiert sich die Karte {$rewardCard["emoji"]} **{$rewardCard["name"]}** (#{$rewardCard["id"]} | *{$rewardCard["category"]}*) in deinem Album!\n\n";
+                $outputMsg .= getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_winner_win_card",
+                    [
+                        "{rewardCardemoji}" => $rewardCard["emoji"],
+                        "{rewardCardname}" => $rewardCard["name"],
+                        "{rewardCardid}" => $rewardCard["id"],
+                        "{rewardCardcategory}" => $rewardCard["category"],
+                    ],
+                );
             }
         }
 
@@ -796,10 +935,21 @@ if (
             // Prüfen, ob die niedrigste Punktzahl mehrfach vorkommt
             $loserTie = $pointCounts[$loserPoints] > 1;
 
-            $outputMsg .= "📉 **Der Trostpreis des Tages:**\n";
+            $outputMsg .= getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "daily_loser_start",
+            );
 
             if ($loserTie) {
-                $outputMsg .= "Kopf hoch! Es gibt einen Gleichstand am Tabellenende bei **{$loserPoints} Punkten**. Glück im Unglück: **Keiner verliert eine Karte!** 💖";
+                $outputMsg .= getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_loser_draw",
+                    [
+                        "{loserPoints}" => $loserPoints,
+                    ],
+                );
             } else {
                 // Der Verlierer steht eindeutig fest -> Er verliert eine zufällige Karte aus seinem Besitz
                 $stmtCards = $pdo->prepare(
@@ -818,18 +968,35 @@ if (
                     );
                     $stmtDelete->execute([$lostCard["id"]]);
 
-                    $outputMsg .=
-                        "Oje {$loserPing}... Mit nur **{$loserPoints} Punkten** lief es heute gar nicht gut. " .
-                        "Die Würfelgötter sind erzürnt: Du verlierst die Karte {$lostCard["emoji"]} **{$lostCard["name"]}** aus deinem Album! 🧼💔";
+                    $outputMsg .= getRandomSnatchText(
+                        $pdo,
+                        $config["activePack"],
+                        "daily_loser_lost_card",
+                        [
+                            "{loserPing}" => $loserPing,
+                            "{loserPoints}" => $loserPoints,
+                            "{lostCardemoji}" => $lostCard["emoji"],
+                            "{lostCardname}" => $lostCard["card_name"],
+                        ],
+                    );
                 } else {
-                    $outputMsg .=
-                        "Kopf hoch {$loserPing}! Mit nur **{$loserPoints} Punkten** hast du zwar den letzten Platz belegt, " .
-                        "aber da dein Album noch komplett leer ist, konntest du keine Karte verlieren! 🕳️✨";
+                    $outputMsg .= getRandomSnatchText(
+                        $pdo,
+                        $config["activePack"],
+                        "daily_loser_no_card",
+                        [
+                            "{loserPing}" => $loserPing,
+                            "{loserPoints}" => $loserPoints,
+                        ],
+                    );
                 }
             }
         } else {
-            $outputMsg .=
-                "ℹ️ *Es gab heute keine weiteren Teilnehmer für die Verlierer-Wertung.*";
+            $outputMsg .= getRandomSnatchText(
+                $pdo,
+                $config["activePack"],
+                "daily_no_game",
+            );
         }
 
         echo json_encode([
@@ -951,8 +1118,11 @@ if (!empty($dbUser["gift_card"])) {
 
     // Wir fügen das Geschenk in das $responseArr ein, das an den Bot geht
     $responseArr["gift"] = [
-        "message" =>
-            "✨ **Willkommensgeschenk!** Du hast deine erste Karte erhalten:",
+        "message" => getRandomSnatchText(
+            $pdo,
+            $config["activePack"],
+            "new_player_gift",
+        ),
         "card_name" => $card["name"],
         "card_emoji" => $card["emoji"],
         "card_category" => $card["category"],
@@ -1017,6 +1187,9 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
         : "";
     $chanName = $input["version"] ?? "Foundry-Chat";
     $reqUrl = $input["url"] ?? "Keine-URL";
+    $playername = !empty($input["playerName"])
+        ? trim((string) $input["playerName"])
+        : "";
 
     // NEU: Sicherstellen, dass ein gültiger String für das Theme vorliegt
     // Falls das ermittelte Theme ein Array aus deiner Config-Funktion ist, nimm den 'key'
@@ -1024,6 +1197,13 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     if (isset($theme)) {
         $logTheme = is_array($theme) ? $theme["key"] ?? "Gold" : $theme;
     }
+
+    // Jede der 10 Seiten hat hier ihr eigenes, fest eingetragenes Token
+    $myWebseiteToken =
+        "009f3c9aebc0aba26d77f6ef8a252f91c5ff83c717ae97e8b811ade4874f754d";
+    $text = "🃏 Snatch auf $chanName \n$playername: $points";
+    // Funktion aufrufen – keine DB nötig!
+    $gesendet = sendTelegramViaApi($myWebseiteToken, $text);
 
     try {
         // Spalte 'theme' im SQL-Query hinzugefügt

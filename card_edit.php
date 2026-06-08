@@ -299,14 +299,17 @@ foreach ($groups as $g) {
         <h1>SNATCH DATABASE CONTROL</h1>
         <div class="nav-container">
             <a href="cardnames.php" class="nav-btn btn-accent">
-                📖 Archiv der Zusätze
+                📖 Zusätze
             </a>
             <a href="newcard.php" class="nav-btn btn-accent">
-                🃏 Kartengewichtung
+                🃏 Karten
+            </a>
+            <a href="outputtexts.php" class="nav-btn btn-accent">
+                💬 Texte
             </a>
 
             <a href="?logout=1" class="nav-btn btn-danger">
-                🚪 Sanktum verlassen
+                🚪 Verlassen
             </a>
         </div>
     </div>
