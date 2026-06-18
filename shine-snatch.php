@@ -1251,6 +1251,7 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     // --- GEHEIMER ERSTER ZUG DES TAGES LOGIK (HIER INNERHALB DES SPIELS) ---
     // =========================================================================
 
+    // --- THEME ERMITTLUNG GEMￃﾄSS DEINER REGELN ---
     // --- THEME ERMITTLUNG GEMÄSS DEINER REGELN ---
     $userThemeInput = trim($input["theme"] ?? ""); // Was vom Bot/User übergeben wurde (z.B. "Barde", "Zufall", "Alchemie,Barde")
 
@@ -1296,30 +1297,29 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
         "SELECT * FROM snatch_themes WHERE theme_name = ?",
     );
     $stmtGetTheme->execute([$selectedThemeName]);
-    $themeData = $stmtGetTheme->fetch(PDO::FETCH_ASSOC);
+    $cfg = $stmtGetTheme->fetch(PDO::FETCH_ASSOC);
 
     // Fallback, falls das gewählte Theme nicht in der DB existiert
-    if (!$themeData) {
-        $stmtGetTheme->execute(["Alchemie"]); // Alchemie oder dein Standard als Ausweichdaten
-        $themeData = $stmtGetTheme->fetch(PDO::FETCH_ASSOC);
+    if (!$cfg) {
+        $stmtGetTheme->execute(["Gold"]); // Alchemie oder dein Standard als Ausweichdaten
+        $cfg = $stmtGetTheme->fetch(PDO::FETCH_ASSOC);
     }
 
-    // --- ZENTRALE STYLE-VARIABLEN (Ersatz für den Style-Block für Foundry VTT) ---
+    // --- ZENTRALE STYLE-VARIABLEN ---
     $s_container = "display: block; box-sizing: border-box; width: 100%; font-family: 'Signika', sans-serif; border: 2px solid {$cfg["color_accent"]}; border-radius: 10px; background-color: {$cfg["color_bg"]}; padding: 12px; color: {$cfg["color_text_main"]}; box-shadow: 0 6px 12px {$cfg["shadow_color"]};";
     $s_header = "border-bottom: 2px solid {$cfg["color_primary"]}; margin-top: 0; text-align: center; color: {$cfg["color_bolt_core"]}; text-transform: uppercase;";
     $s_header_title = "font-weight: bold; text-shadow: 0 0 10px {$cfg["color_primary"]}, 0 0 20px {$cfg["color_primary"]};";
     $s_section_label = "margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg["color_accent"]};";
-    $s_card_list = "list-style: none; padding: 8px; margin-bottom: 5px; border: 1px solid #333; border-radius: 4px; background-color: {$cfg["color_bg_card"]};";
+    $s_card_list = "list-style: none; padding: 8px; margin-bottom: 5px; border: 1px solid {$cfg["color_primary"]}; border-radius: 4px; background-color: {$cfg["color_bg_card"]};";
     $s_card_item =
         "border-bottom: 1px solid #333; padding: 2px 0; list-style: none;";
-    $s_special_marker = "color: {$cfg["color_primary"]}; font-weight: bold; margin-right: 4px;";
-    $s_card_text_used = "color: {$cfg["color_text_muted"]}; text-decoration: line-through;";
-    $s_card_text_unused = "font-weight: bold; color: {$cfg["color_bolt_core"]};";
-    $s_card_id = "color: {$cfg["color_accent"]}; opacity: 0.8;";
-    $s_points_right = "float: right; color: {$cfg["color_text_main"]};";
-    $s_sum_block = "text-align: right; font-size: 0.85em; color: {$cfg["color_text_muted"]}; margin-bottom: 5px; font-style: italic;";
     $s_bold_bolt = "color: {$cfg["color_bolt_core"]};";
-    $s_subtotal_block = "text-align: right; font-size: 0.9em; color: {$cfg["color_text_muted"]}; border-top: 1px solid #333; margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;";
+    $s_subtotal_block = "text-align: right; font-size: 0.9em; color: {$cfg["color_text_muted"]}; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;";
+    $s_combo_container = "padding: 8px; background-color: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid {$cfg["color_primary"]};";
+    $s_unused_wrapper = "margin-top: 10px; opacity: 0.7;";
+    $s_unused_container = "padding: 4px 8px; border-left: 2px solid {$cfg["color_text_muted"]};";
+    $s_unused_item = "color: {$cfg["color_text_muted"]}; font-size: 0.9em; margin-bottom: 1px;";
+    $s_total_box = "text-align: center; font-size: 1.4rem; margin-top: 15px; padding: 12px; background-color: {$cfg["color_bg"]}; color: {$cfg["color_bolt_core"]}; border: 1px solid {$cfg["color_accent"]}; border-radius: 6px; font-weight: bold; text-shadow: 0 0 10px {$cfg["color_primary"]}, 0 0 20px {$cfg["color_primary"]};";
     $s_bonus_box =
         "padding: 5px; background-color: " .
         ($cfg["color_special_bg"] ?? "rgba(74, 222, 128, 0.1)") .
@@ -1327,55 +1327,21 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     $s_bonus_title = "color: {$cfg["color_primary"]}; font-weight: bold;";
     $s_bonus_pts = "float: right; color: {$cfg["color_bolt_core"]}; font-weight: bold;";
     $s_bonus_detail = "font-size: 0.9em; color: {$cfg["color_text_main"]}; opacity: 0.8;";
+    // --- ZENTRALE STYLE-VARIABLEN ---
+    $s_container = "display: block; box-sizing: border-box; width: 100%; font-family: 'Signika', sans-serif; border: 2px solid {$cfg["color_accent"]}; border-radius: 10px; background-color: {$cfg["color_bg"]}; padding: 12px; color: {$cfg["color_text_main"]}; box-shadow: 0 6px 12px {$cfg["shadow_color"]};";
+    $s_header = "border-bottom: 2px solid {$cfg["color_primary"]}; margin-top: 0; text-align: center; color: {$cfg["color_bolt_core"]}; text-transform: uppercase;";
+    $s_header_title = "font-weight: bold; text-shadow: 0 0 10px {$cfg["color_primary"]}, 0 0 20px {$cfg["color_primary"]};";
+    $s_section_label = "margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg["color_accent"]};";
+    $s_card_list = "list-style: none; padding: 8px; margin-bottom: 5px; border: 1px solid {$cfg["color_primary"]}; border-radius: 4px; background-color: {$cfg["color_bg_card"]};";
+    $s_card_item =
+        "border-bottom: 1px solid #333; padding: 2px 0; list-style: none;";
+    $s_bold_bolt = "color: {$cfg["color_bolt_core"]};";
+    $s_subtotal_block = "text-align: right; font-size: 0.9em; color: {$cfg["color_text_muted"]}; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;";
     $s_combo_container = "padding: 8px; background-color: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid {$cfg["color_primary"]};";
-    $s_combo_item = "color: {$cfg["color_bolt_core"]}; margin-bottom: 2px;";
-    $s_combo_ids = "color: {$cfg["color_text_combo_ids"]}; font-size: 0.8em;";
-    $s_points_right_p = "float: right; color: {$cfg["color_primary"]};";
     $s_unused_wrapper = "margin-top: 10px; opacity: 0.7;";
     $s_unused_container = "padding: 4px 8px; border-left: 2px solid {$cfg["color_text_muted"]};";
     $s_unused_item = "color: {$cfg["color_text_muted"]}; font-size: 0.9em; margin-bottom: 1px;";
     $s_total_box = "text-align: center; font-size: 1.4rem; margin-top: 15px; padding: 12px; background-color: {$cfg["color_bg"]}; color: {$cfg["color_bolt_core"]}; border: 1px solid {$cfg["color_accent"]}; border-radius: 6px; font-weight: bold; text-shadow: 0 0 10px {$cfg["color_primary"]}, 0 0 20px {$cfg["color_primary"]};";
-
-    // --- SICHERSCHRIFT DER THEME-VARIABLEN (Ohne ??-Kettenkonflikte) ---
-    $color_primary = isset($themeData["color_primary"])
-        ? $themeData["color_primary"]
-        : "#fb8500";
-    $color_glow_main = isset($themeData["color_glow_main"])
-        ? $themeData["color_glow_main"]
-        : "rgba(251, 133, 0, 0.4)";
-    $color_bolt_core = isset($themeData["color_bolt_core"])
-        ? $themeData["color_bolt_core"]
-        : "#ffb703";
-    $color_accent = isset($themeData["color_accent"])
-        ? $themeData["color_accent"]
-        : "#8ecae6";
-    $color_bg = isset($themeData["color_bg"])
-        ? $themeData["color_bg"]
-        : "#023047";
-    $color_bg_card = isset($themeData["color_bg_card"])
-        ? $themeData["color_bg_card"]
-        : "rgba(255, 183, 3, 0.05)";
-    $shadow_color = isset($themeData["shadow_color"])
-        ? $themeData["shadow_color"]
-        : "rgba(0, 0, 0, 0.6)";
-    $color_text_main = isset($themeData["color_text_main"])
-        ? $themeData["color_text_main"]
-        : "#ffffff";
-    $color_special_bg = isset($themeData["color_special_bg"])
-        ? $themeData["color_special_bg"]
-        : "rgba(33, 158, 188, 0.39)";
-    $color_text_muted = isset($themeData["color_text_muted"])
-        ? $themeData["color_text_muted"]
-        : "#126782";
-    $header_icon = isset($themeData["header_icon"])
-        ? $themeData["header_icon"]
-        : "🧪";
-    $header_title = isset($themeData["header_title"])
-        ? $themeData["header_title"]
-        : "Labor-Snatch";
-    $label_total = isset($themeData["label_total"])
-        ? $themeData["label_total"]
-        : "ELIXIER:";
 
     // Sicherstellen, dass das activePack aus der Config geladen wird
     $activePack = isset($config["activePack"])
@@ -1383,6 +1349,9 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
         : "default";
 
     // Prüfen, ob das Feature für diesen Server aktiv ist
+    $publicHtml = "";
+    $isSecretPull = false;
+
     if (!empty($serverId)) {
         $stmtSet = $pdo->prepare(
             "SELECT setting_value FROM snatch_settings WHERE server_id = ? AND setting_key = 'secret_first_pull'",
@@ -1406,6 +1375,7 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
 
             // Da der aktuelle Log-Eintrag gerade eben oben geschrieben wurde, ist der Counter bei genau 1
             if ($pullsToday == 1) {
+                //if ($pullsToday <= 100) {
                 $isSecretPull = true;
 
                 // Wir holen einen passenden Text aus dem Pool für die Ankündigung
@@ -1418,164 +1388,82 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
                     ],
                 );
 
-                // --- ZUFALLS-CHANCEN BERECHNEN (TESTWEISE AUF 99%) ---
-                $showCards = rand(1, 100) <= 20; // 99% Chance
-                $showCombos = rand(1, 100) <= 50; // 99% Chances
+                // --- WÜRFEL-CHANCEN FÜR DIE DISCORD/FOUNDRY TEASER ---
+                $showCards = rand(1, 100) <= 20; // 20% Chance
+                $showCombos = rand(1, 100) <= 50; // 50% Chance
 
                 // Diese gemeinsame Variable sammelt alle gewürfelten Inhalte für das finale Template
                 $teaserSectionsHtml = "";
 
-                // 1. Teaser-Abschnitt: Gezogene Karten (Jetzt im exakten Stil von Block 2)
+                // 1. Teaser-Abschnitt: Sammelkarten Spruch (20% Chance)
                 if ($showCards) {
-                    $lblHand = isset($themeData["label_hand"])
-                        ? $themeData["label_hand"]
-                        : "Gezogen";
-
-                    // Wir holen uns den echten Karten-Zwischenstand
-                    $cardsSubTotal = isset($cardsTotal)
-                        ? $cardsTotal
-                        : (isset($subTotal)
-                            ? $subTotal
-                            : 0);
-
-                    // Wenn leer, nutzen wir ein schönes, im Theme passendes Elixier-Muted-Lila für den Platzhalter
-                    $innerCards = !empty($listHtml)
-                        ? $listHtml
-                        : "<li style='padding: 4px; color: {$color_text_main}; opacity: 0.6; font-style: italic; list-style: none;'>Keine Fragmente sichtbar...</li>";
-
                     $teaserSectionsHtml .= "
-                                    <!-- Karten-Container-Start -->
-                                    <div style='margin-bottom: 15px;'>
-                                        <p style='margin: 12px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$color_accent};' data-edit-keys='colorAccent'>
-                                            {$lblHand})
-                                        </p>
-                                        <!-- Hintergrund und Rahmen exakt an den funktionierenden Bonusblock angepasst -->
-                                        <ul style='list-style: none; padding: 8px; margin: 0 0 10px 0; border: 1px solid {$color_primary}; border-radius: 4px; background-color: {$color_bg_card};' data-edit-keys='colorBgCard,colorPrimary'>
-                                            {$innerCards}
-                                        </ul>
-                                        <!-- Die graue/farbige Trennlinie und die korrekte Cyan-Farbe für die Punkte -->
-                                        <div style='text-align: right; font-size: 0.9em; color: {$color_accent}; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;' data-edit-keys='colorAccent'>
-                                            Einfluss: <strong style='color: {$color_bolt_core};' data-edit-keys='colorBoltCore'>?? Pkt</strong>
-                                        </div>
-                                    </div>
-                                    <!-- Karten-Container-Ende -->
-
-                                    <div style=\"$s_bonus_box\" data-edit-keys='colorPrimary,colorSpecialBg'>
-                                        <span style=\"$s_bonus_title\" data-edit-keys='colorPrimary'>{$cfg["label_special_bonus"]}</span>
-                                        <span style=\"$s_bonus_pts\" data-edit-keys='colorBoltCore'>+$specBonusTotal Pkt</span>
-                                        <div style=\"$s_bonus_detail\" data-edit-keys='colorTextMain'>Gewürfelt: " .
-                                    implode(", ", $specHits) .
-                                    "</div>
-                                    </div>
-                                    <div style=\"$s_subtotal_block\" data-edit-keys='colorTextMain'>
-                                        {$cfg["label_sub_total"]} <strong style=\"$s_bold_bolt\" data-edit-keys='colorBoltCore'>$subTotal Pkt</strong>
-                                    </div>"
+                        <div style=\"$s_bonus_box\" data-edit-keys='colorPrimary,colorSpecialBg'>
+                            <span style=\"$s_bonus_title\" data-edit-keys='colorPrimary'>{$cfg["label_special_bonus"]}</span>
+                            <span style=\"$s_bonus_pts\" data-edit-keys='colorBoltCore'>+?? Pkt</span>
+                            <div style=\"$s_bonus_detail\" data-edit-keys='colorTextMain'>Gewürfelt: Sammelkarten Bonus ??
+                        </div>
+                        </div>
+                        <div style=\"$s_subtotal_block\" data-edit-keys='colorTextMain'>
+                            {$cfg["label_sub_total"]} <strong style=\"$s_bold_bolt\" data-edit-keys='colorBoltCore'>?? Pkt</strong>
+                        </div>";
                 }
 
-                // 2. Teaser-Abschnitt: Kombinationen, Boni & verfallene Pfade
+                // 2. Teaser-Abschnitt: Synergien & Verfallene Pfade (50% Chance)
                 if ($showCombos) {
-                    $bonusPoints = isset($specBonusTotal) ? $specBonusTotal : 0;
-                    $bonusHits = isset($specHits) ? $specHits : [];
-                    $currentSub = isset($subTotal) ? $subTotal : 0;
-
-                    // Teil A: Würfel-Bonus (z.B. Adels-Privileg)
-                    if ($bonusPoints > 0) {
-                        $lblBonus = isset($themeData["label_special_bonus"])
-                            ? $themeData["label_special_bonus"]
-                            : "Bonus";
-                        $lblSub = isset($themeData["label_sub_total"])
-                            ? $themeData["label_sub_total"]
-                            : "Zwischenstand";
-                        $hitsStr = !empty($bonusHits)
-                            ? implode(", ", $bonusHits)
-                            : "";
-
-                        $teaserSectionsHtml .= "
-                                        <div style='padding: 5px; background-color: {$color_special_bg}; border: 1px solid {$color_primary}; border-radius: 4px; margin-bottom: 10px; font-size: 0.9em;' data-edit-keys='colorPrimary,colorSpecialBg'>
-                                            <span style='color: {$color_primary}; font-weight: bold;' data-edit-keys='colorPrimary'>{$lblBonus}:</span>
-                                            <span style='float: right; color: #ffffff; font-weight: bold;' data-edit-keys='colorBoltCore'>+{$bonusPoints} Pkt</span>
-                                            <div style='font-size: 0.9em; color: #f5f5f5; opacity: 0.8;' data-edit-keys='colorTextMain'>Gewürfelt: {$hitsStr}</div>
-                                        </div>
-                                        <div style='text-align: right; font-size: 0.9em; color: #887766; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; padding: 5px 5px 0 0; font-style: italic;' data-edit-keys='colorTextMain'>
-                                            Machtanspruch: <strong style='color: #ffffff;' data-edit-keys='colorBoltCore'>?? Pkt</strong>
-                                        </div>";
-                    }
-
-                    // Teil B: Aktive Kombinationen / Synergien (Hofintrigen)
-                    $lblCombos = isset($themeData["label_combos"])
-                        ? $themeData["label_combos"]
-                        : "Synergien";
-                    $comboContainerStyle = "padding: 8px; background-color: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid {$color_primary};";
-                    $innerCombos = !empty($activeHtml)
-                        ? $activeHtml
-                        : "<i style='color: {$color_text_muted}; font-style: italic;'>Deine Synergien...</i>";
-
+                    // Teil A: Aktive Kombinationen Andeutung
                     $teaserSectionsHtml .= "
-                                    <div style='margin-bottom: 10px;'>
-                                        <p style='margin: 0 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$color_accent};' data-edit-keys='colorAccent'>{$lblCombos}:</p>
-                                        <div style='{$comboContainerStyle}' data-edit-keys='colorPrimary'>
-                                            {$innerCombos}
-                                        </div>
-                                    </div>";
+                        <div style=\"margin-bottom: 10px;\">
+                            <p style=\"margin: 0 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$cfg["color_accent"]};\" data-edit-keys='colorAccent'>{$cfg["label_combos"]}:</p>
+                            <div style=\"$s_combo_container\" data-edit-keys='colorPrimary'>
+                                <i style=\"color: {$cfg["color_text_muted"]}; font-style: italic;\" data-edit-keys='colorTextMuted'>Es sieht so aus, als hättest du eine Synergie... oder?</i>
+                            </div>
+                        </div>";
 
-                    // Teil C: Verfallene Pfade (Vergessene Erben)
-                    if (!empty($unusedHtml)) {
-                        $lblUnused = isset($themeData["label_unused"])
-                            ? $themeData["label_unused"]
-                            : "Inaktiv";
-                        $teaserSectionsHtml .= "
-                                        <div style='margin-top: 10px; opacity: 0.7;'>
-                                            <p style='margin: 0 0 2px 0; font-size: 0.9em; font-weight: bold; text-transform: uppercase; color: {$color_text_muted};' data-edit-keys='colorTextMuted'>{$lblUnused}:</p>
-                                            <div style='padding: 4px 8px; border-left: 2px solid {$color_text_muted};' data-edit-keys='colorTextMuted'>
-                                                {$unusedHtml}
-                                            </div>
-                                        </div>";
-                    }
+                    // Teil B: Verfallene Pfade (Private Message Hinweis)
+                    $teaserSectionsHtml .= "
+                        <div style=\"$s_unused_wrapper\">
+                            <p style=\"margin: 0 0 2px 0; font-size: 0.9em; font-weight: bold; text-transform: uppercase; color: {$cfg["color_text_muted"]};\" data-edit-keys='colorTextMuted'>{$cfg["label_unused"]}:</p>
+                            <div style=\"$s_unused_container\" data-edit-keys='colorTextMuted'>
+                                <div style=\"$s_unused_item\" data-edit-keys='colorTextMuted'>
+                                    ℹ️ <i>Du hast eine Message erhalten.</i>
+                                </div>
+                            </div>
+                        </div>";
                 }
 
                 // --- GENERIERUNG DES FINALEN ÖFFENTLICHEN HTML-BANNERS ---
                 $publicHtml = "
-                    <div style='display: block; box-sizing: border-box; width: 100%; font-family: \"Signika\", sans-serif; border: 2px solid {$color_primary}; border-radius: 10px; background-color: {$color_bg}; padding: 12px; color: {$color_text_main}; box-shadow: 0 6px 12px {$color_glow_main};'>
+                    <div style=\"$s_container\" data-edit-key='shadowColor,colorTextMain,colorBg,colorAccent'>
 
-                        <h2 style='border-bottom: 2px solid {$color_primary}; margin-top: 0; text-align: center; color: {$color_bolt_core}; text-transform: uppercase;'>
-                            <span style='font-weight: bold; text-shadow: 0 0 10px {$color_primary}, 0 0 20px {$color_primary};'>
-                                {$header_icon} {$header_title}
+                        <h2 style=\"$s_header\" data-edit-keys='colorPrimary,colorBoltCore'>
+                            <span style=\"$s_header_title\" data-edit-keys='colorPrimary'>
+                                {$cfg["header_icon"]} {$cfg["header_title"]}
                             </span>
                         </h2>
 
-                        <p style='margin: 8px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$color_accent};'>
-                            Mysterium des Tages:
+                        <p style=\"$s_section_label\" data-edit-keys='colorAccent'>
+                        {$cfg["label_hand"]}
                         </p>
 
-                        <div style='padding: 20px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; background-color: {$color_bg_card}; text-align: center; border-left: 4px solid {$color_primary};'>
-                            <div style='font-size: 3.5rem; margin-bottom: 10px; animation: secretPulse 2s infinite ease-in-out;'>🔒📦</div>
-                            <p style='margin: 5px 0; font-size: 1.05em; font-weight: 500; color: {$color_text_main}; text-shadow: 0 1px 3px #000;'>
+                        <div style=\"padding: 20px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; background-color: {$cfg["color_bg_card"]}; text-align: center; border-left: 4px solid {$cfg["color_primary"]};\">
+                            <div style=\"font-size: 3.5rem; margin-bottom: 10px; animation: secretPulse 2s infinite ease-in-out;\">🔒📦</div>
+                            <p style=\"margin: 5px 0; font-size: 1.05em; font-weight: 500; color: {$cfg["color_text_main"]}; text-shadow: 0 1px 3px #000;\">
                                 {$announcementText}
                             </p>
                         </div>
 
-                        {$teaserSectionsHtml}
+                        $teaserSectionsHtml
 
-                        <div style='text-align: right; font-size: 0.85em; color: {$color_text_muted}; margin-bottom: 5px; font-style: italic;'>
-                            Status: <strong style='color: {$color_bolt_core};'>Übertragung läuft</strong>
-                        </div>
-
-                        <div>
-                            <p style='margin: 10px 0 4px 0; font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: {$color_accent};'>Übertragung:</p>
-                            <div style='padding: 8px; background-color: {$color_special_bg}; border-radius: 4px; border-left: 3px solid {$color_primary}; font-size: 0.85em; color: {$color_text_main};'>
-                                <i style='font-style: italic;'>Die Karten wurden dir per Message mitgeteilt...</i>
-                            </div>
-                        </div>
-
-                        <div style='text-align: center; font-size: 1.3rem; margin-top: 15px; padding: 12px; background-color: {$color_bg}; color: {$color_bolt_core}; border: 1px solid {$color_primary}; border-radius: 6px; font-weight: bold; text-shadow: 0 0 10px {$color_primary}, 0 0 20px {$color_primary}; text-transform: uppercase;'>
-                            {$label_total} GEHEIM
+                        <div style=\"$s_total_box\" data-edit-keys='colorBg,colorBoltCore,colorAccent,colorPrimary'>
+                            {$cfg["label_total"]} GEHEIM
                         </div>
 
                     </div>
                     <style>
                         @keyframes secretPulse {
                             0% { transform: scale(1); filter: drop-shadow(0 0 2px transparent); }
-                            50% { transform: scale(1.08); filter: drop-shadow(0 0 8px {$color_primary}); }
+                            50% { transform: scale(1.08); filter: drop-shadow(0 0 8px {$cfg["color_primary"]}); }
                             100% { transform: scale(1); filter: drop-shadow(0 0 2px transparent); }
                         }
                     </style>";
@@ -1590,10 +1478,10 @@ if (isset($msg) && isset($responseArr["text"])) {
     $responseArr["text"] = $msg . "\n" . $responseArr["text"];
 }
 
-// --- DEBUG-BLOCK: Prüfen ob das Spiel antwortet ---
+// --- DEBUG-BLOCK: Prￃﾼfen ob das Spiel antwortet ---
 if (empty($shineResponse)) {
     echo json_encode([
-        "error" => "Keine Antwort von snatch-game.php erhalten. URL prüfen!",
+        "error" => "Keine Antwort von snatch-game.php erhalten. URL prￃﾼfen!",
     ]);
     exit();
 }

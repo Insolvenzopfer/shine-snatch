@@ -781,7 +781,7 @@ async function copyMacroToClipboard() {
         if (!response.ok) throw new Error('Datei nicht gefunden');
         let macroCode = await response.text();
 
-        macroCode = macroCode.replace(/const activeTheme = ".*?";/, `const activeTheme = "${currentSelectedThemeName}";`);
+        macroCode = macroCode.replace(/let activeTheme = ".*?";/, `let activeTheme = "${currentSelectedThemeName}";`);
 
         await navigator.clipboard.writeText(macroCode);
         btn.innerHTML = "✅ Script kopiert!";

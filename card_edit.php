@@ -307,7 +307,9 @@ foreach ($groups as $g) {
             <a href="outputtexts.php" class="nav-btn btn-accent">
                 💬 Texte
             </a>
-
+            <a href="settings.php" class="nav-btn btn-accent">
+                🪛 Einstellungen
+            </a>
             <a href="?logout=1" class="nav-btn btn-danger">
                 🚪 Verlassen
             </a>

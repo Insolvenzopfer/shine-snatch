@@ -3,19 +3,17 @@
 
 // --- USER KONFIGURATION ---
 // Themes auswahl unter https://www.9ps.eu/shine-snatch/themes.php
-const currentScriptVersion = "1.4"; // Deine aktuelle Version
-//const activeTheme = "Kombo-Theme,Zufall";
-const activeTheme =
-  typeof playerTheme !== "undefined" && playerTheme
-    ? playerTheme
-    : "Kombo-Theme,Zufall";
+
+let activeTheme = "Kombo-Theme,Zufall";
+
+activeTheme =
+  typeof playerTheme !== "undefined" && playerTheme ? playerTheme : activeTheme;
 
 // URL zum aufruf der Karten
 const apiUrl = "https://www.9ps.eu/shine-snatch/shine-snatch.php";
-// Backup URL
-// const apiUrl = "https://www.typimkilt.de/shine-snatch/shine-snatch.php";
 
 // --- LOGIK ZUM AUSLESEN DES INVENTARS ---
+const currentScriptVersion = "1.4"; // Deine aktuelle Version
 const actor = canvas.tokens.controlled[0]?.actor || game.user.character;
 const playerName = game.user.name; // Holt den Namen des Spielers (nicht des Charakters)
 const worldName = game.world.title; // Der Name deiner Foundry-Welt
