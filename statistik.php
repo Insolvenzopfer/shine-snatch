@@ -1,4 +1,6 @@
 <?php
+session_start();
+$is_logged_in = isset($_SESSION["loggedin"]);
 /**
  * Shine-Snatch Statistik Generator (SQL-Version)
  */
@@ -238,6 +240,35 @@ if (!empty($targetContext)) {
         // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
         // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
         // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // Das heutige Datum im Format Y-m-d
+
+        // Datumszeile anzeigen (falls ein neuer Tag beginnt)
+
+        // Berechnen, ob dieser Eintrag der Tagessieger ist
+
+        // 1. STANDARD-WERTE (Für Admins oder ältere Tage)
+
+        // SONDERREGEL: Wenn der Eintrag von HEUTE ist UND der User KEIN Admin ist
+        // Gewinner-Label für Nicht-Admins heute verstecken, um Spionage zu verhindern
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // --- NEU: Abbrechen, sobald 15 Einträge ausgegeben wurden ---
+        // Das heutige Datum im Format Y-m-d
+
+        // Datumszeile anzeigen (falls ein neuer Tag beginnt)
+        // Berechnen, ob dieser Eintrag der Tagessieger ist
+        // 1. STANDARD-WERTE (Für Admins oder ältere Tage)
+        // SONDERREGEL: Wenn der Eintrag von HEUTE ist UND der User KEIN Admin ist
+        // Gewinner-Label für Nicht-Admins heute verstecken, um Spionage zu verhindern
         else: ?>
 
     <div class="stats-grid">
@@ -250,44 +281,76 @@ if (!empty($targetContext)) {
                     <tr><th>Uhrzeit / Spieler</th><th>Ergebnis</th></tr>
                 </thead>
                 <tbody>
-                    <?php
-                    $lastDate = "";
-                    foreach ($entries as $entry):
+                                    <?php if (empty($entries)): ?>
+                                        <tr><td colspan="2" style="text-align:center; opacity:0.5; padding: 20px;">Noch keine Ziehungen aufgezeichnet.</td></tr>
+                                    <?php else:$lastDate = "";
+                                        $todayRawStr = date("Y-m-d");
 
-                        $currentDate = $entry["date"];
-                        if ($currentDate !== $lastDate): ?>
-                        <tr class="date-row">
-                            <td colspan="2">📅 <?php echo $currentDate; ?></td>
-                        </tr>
-                    <?php endif;
-                        $isWinner =
-                            isset($dailyWinners[$entry["rawDate"]]) &&
-                            $entry["points"] ===
-                                (int) $dailyWinners[$entry["rawDate"]];
-                        ?>
-                    <tr>
-                        <td>
-                            <span style="opacity:0.4; font-size:0.8rem; margin-right:5px;"><?php echo $entry[
-                                "time"
-                            ]; ?></span>
-                            <code><?php echo htmlspecialchars(
-                                $entry["user"],
-                            ); ?></code>
-                            <?php if ($isWinner): ?>
-                                <span class="winner-label">👑 Tages-Bestwert</span>
-                            <?php endif; ?>
-                            <br><small style="opacity: 0.4; font-size: 0.75rem;">Hand: <?php echo htmlspecialchars(
-                                $entry["cards"],
-                            ); ?></small>
-                        </td>
-                        <td class="highlight" style="text-align: right; white-space: nowrap;"><?php echo $entry[
-                            "points"
-                        ]; ?> Pkt</td>
-                    </tr>
-                    <?php $lastDate = $currentDate;
-                    endforeach;
-                    ?>
-                </tbody>
+                                        foreach ($entries as $entry):
+
+                                            $currentDate = $entry["date"];
+
+                                            if ($currentDate !== $lastDate): ?>
+                                                <tr class="date-row">
+                                                    <td colspan="2">📅 <?php echo $currentDate; ?></td>
+                                                </tr>
+                                            <?php endif;
+
+                                            $isWinner =
+                                                isset(
+                                                    $dailyWinners[
+                                                        $entry["rawDate"]
+                                                    ],
+                                                ) &&
+                                                $entry["points"] ===
+                                                    (int) $dailyWinners[
+                                                        $entry["rawDate"]
+                                                    ];
+
+                                            $userDisplay = htmlspecialchars(
+                                                $entry["user"],
+                                            );
+                                            $cardsDisplay = htmlspecialchars(
+                                                $entry["cards"],
+                                            );
+                                            $pointsDisplay =
+                                                $entry["points"] . " Pkt";
+                                            $winnerLabel = $isWinner
+                                                ? '<span class="winner-label">👑 Tages-Bestwert</span>'
+                                                : "";
+
+                                            if (
+                                                $entry["rawDate"] ===
+                                                    $todayRawStr &&
+                                                !$is_logged_in
+                                            ) {
+                                                $userDisplay =
+                                                    "<span style='opacity:0.4; letter-spacing: 2px;'>*****</span>";
+                                                $cardsDisplay =
+                                                    "<span style='opacity:0.4; letter-spacing: 1px;'>*****</span>";
+                                                $pointsDisplay =
+                                                    "<span style='opacity:0.4; letter-spacing: 2px;'>*****</span>";
+                                                $winnerLabel = "";
+                                            }
+                                            ?>
+                                            <tr>
+                                                <td>
+                                                    <span style="opacity:0.4; font-size:0.8rem; margin-right:5px;"><?php echo $entry[
+                                                        "time"
+                                                    ]; ?></span>
+
+                                                    <code><?php echo $userDisplay; ?></code>
+
+                                                    <?php echo $winnerLabel; ?>
+
+                                                    <br><small style="opacity: 0.4; font-size: 0.75rem;">Hand: <?php echo $cardsDisplay; ?></small>
+                                                </td>
+
+                                                <td class="highlight" style="text-align: right; white-space: nowrap;"><?php echo $pointsDisplay; ?></td>
+                                            </tr>
+                                            <?php $lastDate = $currentDate;
+                                        endforeach;endif; ?>
+                                </tbody>
             </table>
         </div>
 
