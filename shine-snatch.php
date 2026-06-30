@@ -14,6 +14,15 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     exit();
 }
 
+$input = json_decode(file_get_contents("php://input"), true);
+if (!$input) {
+    exit(json_encode(["error" => "No input"]));
+}
+file_put_contents(
+    "data-old/debug_payload_shine-snatch.json",
+    json_encode($input, JSON_PRETTY_PRINT),
+);
+
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
 header("Content-Type: application/json; charset=utf-8");
 
@@ -762,9 +771,12 @@ elseif (strtolower($theme) === "showcards") {
         ]);
         exit();
     }
-    $output = "📖 **Sammelkarten-Album von {$actorPing}:**\n";
+    $totalCards = count($myCards);
+
+    // Die Summe in die Überschrift einbauen
+    $output = "📖 **Sammelkarten-Album von {$actorPing} ({$totalCards} Karten):**\n";
     foreach ($myCards as $card) {
-        $output .= "• {$card["emoji"]} **{$card["card_name"]}** (#{$card["card_id"]} | *{$card["category"]}*)\n";
+        $output .= "• (#{$card["card_id"]} - {$card["emoji"]} **{$card["card_name"]}** | *{$card["category"]}*)\n";
     }
     echo json_encode(["text" => $output]);
     exit();
@@ -782,6 +794,125 @@ elseif (strtolower($theme) === "showtheme") {
         "text" => "🎨 {$actorPing}, dein aktuell ausgerüstetes Theme ist: **{$currentTheme}**",
     ]);
     exit();
+}
+
+// ==========================================================
+// REGEL 3c: SHOWALLCARDS (Admin-Rangliste aller Spieler)
+// ==========================================================
+elseif (
+    strtolower($theme) === "showallcards" ||
+    strtolower($theme) === "show-all-cards"
+) {
+    // 1. Admin-Rechte prüfen
+    $allowedMasters = is_array($config["snatchmaster"])
+        ? $config["snatchmaster"]
+        : [];
+
+    // FALL A: User ist KEIN Admin -> Befehl auf normale Ziehung umbiegen
+    if (!in_array($dbUser["actor_id"], $allowedMasters)) {
+        $theme = $dbUser["theme"] ?: "Gold";
+        $input["theme"] = $theme;
+        // Kein exit! Das Skript läuft weiter nach unten und macht eine normale Ziehung.
+    }
+    // FALL B: User ist Admin -> Rangliste ausgeben
+    else {
+        $currentServerId = !empty($input["serverId"])
+            ? trim((string) $input["serverId"])
+            : $dbUser["server_id"] ?? "";
+
+        // SQL-Abfrage: Holt alle User dieses Servers und zählt deren Karten (auch 0 Karten dank LEFT JOIN)
+        $stmt = $pdo->prepare("
+            SELECT u.display_name, u.actor_id, COUNT(c.id) as karten_anzahl
+            FROM snatch_users u
+            LEFT JOIN snatch_cards c ON u.id = c.user_id
+            WHERE u.server_id = ?
+            GROUP BY u.id
+            ORDER BY karten_anzahl DESC, u.display_name ASC
+        ");
+        $stmt->execute([$currentServerId]);
+        $leaderboard = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($leaderboard)) {
+            echo json_encode([
+                "text" =>
+                    "📋 Auf diesem Server wurden noch keine Snatch-Teilnehmer registriert.",
+            ]);
+            exit();
+        }
+
+        $output = "📋 **Dann schauen wir mal, wer wie viele Karten hat: **\n";
+        // =========================================================================
+        // KORREKTUR: Wert aus dem server-spezifischen Unterarray laden
+        // =========================================================================
+        $serverConfig = isset($config[$currentServerId])
+            ? $config[$currentServerId]
+            : [];
+
+        $debugKeyExists = array_key_exists("show_all_list", $serverConfig)
+            ? "JA"
+            : "NEIN";
+        $debugValue = $serverConfig["show_all_list"] ?? "nicht gesetzt (null)";
+        $debugType = gettype($serverConfig["show_all_list"] ?? null);
+
+        $output .= "⚠️ *[DEBUG] Für Server {$currentServerId} in DB vorhanden: {$debugKeyExists} | Wert: '{$debugValue}' | Typ: {$debugType}*\n\n";
+        // =========================================================================
+
+        // Modus aus der serverspezifischen Konfiguration auslesen (Fallback auf 'userlist')
+        $mode = isset($serverConfig["show_all_list"])
+            ? trim((string) $serverConfig["show_all_list"])
+            : "userlist";
+
+        // --------------------------------------------------
+        // MODUS 1: cardcountlist (Nach Anzahl gruppiert)
+        // --------------------------------------------------
+        if ($mode === "cardcountlist") {
+            $grouped = [];
+            foreach ($leaderboard as $row) {
+                $anzahl = (int) $row["karten_anzahl"];
+                $grouped[$anzahl][] = $row["display_name"];
+            }
+
+            foreach ($grouped as $anzahl => $spielerArray) {
+                $spielerListe = implode(", ", $spielerArray);
+
+                if ($anzahl === 0) {
+                    $output .= "• **Keine Karten:** {$spielerListe}\n";
+                } elseif ($anzahl === 1) {
+                    $output .= "• **1 Karte:** {$spielerListe}\n";
+                } else {
+                    $output .= "• **{$anzahl} Karten:** {$spielerListe}\n";
+                }
+            }
+        }
+        // --------------------------------------------------
+        // MODUS 2: userlist (Standard-Modus, jeder Spieler einzeln)
+        // --------------------------------------------------
+        else {
+            $isFirst = true;
+            foreach ($leaderboard as $row) {
+                $name = $row["display_name"];
+                $anzahl = $row["karten_anzahl"];
+
+                if ($isFirst && $anzahl > 0) {
+                    $output .= "• **{$name}** führt mit **{$anzahl}** Karten 🏆\n";
+                    $isFirst = false;
+                } else {
+                    if ($anzahl == 1) {
+                        $output .= "• {$name} hat **1** Karte\n";
+                    } elseif ($anzahl == 0) {
+                        $output .= "• {$name} hat **keine** Karten\n";
+                    } else {
+                        $output .= "• {$name} hat **{$anzahl}** Karten\n";
+                    }
+                }
+            }
+        }
+
+        echo json_encode([
+            "text" => $output,
+        ]);
+        exit();
+    }
 }
 
 // ==========================================================
@@ -822,26 +953,24 @@ if (
         // ANTI-CHEAT-ABFRAGE:
         // Holt für jeden User ausschließlich das ALLERERSTE Spiel des heutigen Tages (MIN(l.id))
         // und sortiert die Liste nach den Punkten absteigend.
-        // aktuell nur der aktuelle tag,für die letzten 24 h , den where in das hier ändern
-        // WHERE server_name = ? AND created_at >= NOW() - INTERVAL 1 DAY
         $stmtWinner = $pdo->prepare("
-            SELECT l.*, u.display_name, u.actor_id
-            FROM snatch_logs l
-            JOIN snatch_users u ON l.user_id = u.id
-            WHERE l.id IN (
-                SELECT MIN(id)
-                FROM snatch_logs
-                WHERE server_name = ? AND DATE(created_at) = CURDATE()
-                GROUP BY user_id
-            )
-            ORDER BY l.total_points DESC
-        ");
+             SELECT l.*, u.display_name, u.actor_id
+             FROM snatch_logs l
+             JOIN snatch_users u ON l.user_id = u.id
+             WHERE l.id IN (
+                 SELECT MIN(id)
+                 FROM snatch_logs
+                 WHERE server_name = ? AND DATE(created_at) = CURDATE()
+                 GROUP BY user_id
+             )
+             ORDER BY l.total_points DESC
+         ");
         $stmtWinner->execute([$world]);
         $todayLogs = $stmtWinner->fetchAll(PDO::FETCH_ASSOC);
 
         if (empty($todayLogs)) {
             echo json_encode([
-                getRandomSnatchText(
+                "text" => getRandomSnatchText(
                     $pdo,
                     $config["activePack"],
                     "no_world_data",
@@ -865,6 +994,13 @@ if (
         // Prüfen, ob die höchste Punktzahl mehrfach vorkommt
         $winnerTie = $pointCounts[$winnerPoints] > 1;
 
+        // Bestimme den Modus bei Gleichstand (Fallback auf "none", wenn nicht gesetzt)
+        $drawMode = strtolower(
+            $config[$input["serverId"]]["daily_winner_draw"] ??
+                $config["daily_winner_draw"],
+        );
+
+        // Standard-Einleitungstext (Bleibt jetzt immer gleich)
         $outputMsg = getRandomSnatchText(
             $pdo,
             $config["activePack"],
@@ -875,15 +1011,84 @@ if (
         );
 
         if ($winnerTie) {
-            $outputMsg .= getRandomSnatchText(
-                $pdo,
-                $config["activePack"],
-                "daily_winner_draw",
-                [
-                    "{winnerPoints}" => $winnerPoints,
-                ],
-            );
+            // DYNAMISCHER TEXT FÜR DEN GLEICHSTAND:
+            if ($drawMode === "all") {
+                // Wenn "all" gesetzt ist, lade den neuen Spezial-Text
+                $outputMsg .= getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_winner_draw_get_cards",
+                    [
+                        "{winnerPoints}" => $winnerPoints,
+                    ],
+                );
+            } else {
+                // Ansonsten (z.B. "none") den bisherigen Standard-Gleichstandstext nutzen
+                $outputMsg .= getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_winner_draw",
+                    [
+                        "{winnerPoints}" => $winnerPoints,
+                    ],
+                );
+            }
+
+            // FALL "all": Bei Gleichstand erhalten ALLE Spieler mit der Höchstpunktzahl eine Karte
+            if ($drawMode === "all") {
+                $outputMsg .=
+                    "\n✨ **Gleichstand-Bonus aktiviert:** Alle Führenden erhalten eine Belohnung!";
+
+                foreach ($todayLogs as $log) {
+                    if ($log["total_points"] === $winnerPoints) {
+                        $currentPing = "<@{$log["actor_id"]}>";
+
+                        // Karte generieren
+                        $rewardCard = generateWeightedCardFromDb($pdo, $config);
+
+                        // Prüfen auf Duplikate und direkt die vorhandenen Kartendaten holen
+                        $stmtCheckWinnerCard = $pdo->prepare(
+                            "SELECT card_id, card_name, emoji FROM snatch_cards WHERE user_id = ? AND card_id = ?",
+                        );
+                        $stmtCheckWinnerCard->execute([
+                            $log["user_id"],
+                            $rewardCard["id"],
+                        ]);
+
+                        // Holt die existierende Karte aus der Datenbank, falls vorhanden
+                        $existingCard = $stmtCheckWinnerCard->fetch(
+                            PDO::FETCH_ASSOC,
+                        );
+
+                        if ($existingCard) {
+                            // Zeigt die exakten Daten der Karte an, die der User bereits besitzt
+                            $outputMsg .= "\n💰🚫 {$currentPing} besitzt bereits: ❌ #{$existingCard["card_id"]} **{$existingCard["card_name"]}** {$existingCard["emoji"]}";
+                        } else {
+                            // Karte eintragen
+                            $stmtInsertWinnerCard = $pdo->prepare("
+                                        INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category)
+                                        VALUES (?, ?, ?, ?, ?)
+                                    ");
+                            $stmtInsertWinnerCard->execute([
+                                $log["user_id"],
+                                $rewardCard["id"],
+                                $rewardCard["name"],
+                                $rewardCard["emoji"],
+                                $rewardCard["category"],
+                            ]);
+
+                            $outputMsg .= "\n🎁 {$currentPing} zieht: {$rewardCard["emoji"]} **{$rewardCard["name"]}** *(ID: #{$rewardCard["id"]})*";
+                        }
+                    }
+                }
+            }
+            // FALL "none": Keiner bekommt eine Karte
+            else {
+                $outputMsg .=
+                    "\nHier gibt es bei einem Unentschieden heute leider keine Karten-Belohnung.";
+            }
         } else {
+            // EINDEUTIGER GEWINNER (Standard-Logik unverändert)
             $outputMsg .= getRandomSnatchText(
                 $pdo,
                 $config["activePack"],
@@ -894,35 +1099,37 @@ if (
                 ],
             );
 
-            // === NEU: KARTE FÜR DEN GEWINNER GENERIEREN & SPEICHERN ===
-            // Eine gewichtete, zufällige Karte aus der DB generieren
             $rewardCard = generateWeightedCardFromDb($pdo, $config);
 
-            // Prüfen, ob der Gewinner genau DIESE Karten-ID bereits besitzt
+            // Prüfen auf Duplikate und echte Kartendaten holen
             $stmtCheckWinnerCard = $pdo->prepare(
-                "SELECT 1 FROM snatch_cards WHERE user_id = ? AND card_id = ?",
+                "SELECT card_id, card_name, emoji FROM snatch_cards WHERE user_id = ? AND card_id = ?",
             );
             $stmtCheckWinnerCard->execute([
                 $winnerData["user_id"],
                 $rewardCard["id"],
             ]);
 
-            if ($stmtCheckWinnerCard->fetch()) {
+            // Holt die existierende Karte, falls sie bereits besitzt wird
+            $existingCard = $stmtCheckWinnerCard->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingCard) {
+                // Holt den Text für eine doppelte Karte und übergibt Emoji, Name und die ID
                 $outputMsg .= getRandomSnatchText(
                     $pdo,
                     $config["activePack"],
                     "daily_winner_same_card",
                     [
-                        "{rewardCardemoji}" => $rewardCard["emoji"],
-                        "{rewardCardname}" => $rewardCard["name"],
+                        "{rewardCardemoji}" => $existingCard["emoji"],
+                        "{rewardCardname}" => $existingCard["card_name"],
+                        "{rewardCardID}" => $existingCard["card_id"], // Übergabe der ID an das Template
                     ],
                 );
             } else {
-                // Karte in die Datenbank des Gewinners eintragen
                 $stmtInsertWinnerCard = $pdo->prepare("
-                    INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category)
-                    VALUES (?, ?, ?, ?, ?)
-                ");
+                             INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category)
+                             VALUES (?, ?, ?, ?, ?)
+                         ");
                 $stmtInsertWinnerCard->execute([
                     $winnerData["user_id"],
                     $rewardCard["id"],
@@ -954,11 +1161,13 @@ if (
             // Prüfen, ob die niedrigste Punktzahl mehrfach vorkommt
             $loserTie = $pointCounts[$loserPoints] > 1;
 
-            $outputMsg .= getRandomSnatchText(
-                $pdo,
-                $config["activePack"],
-                "daily_loser_start",
-            );
+            $outputMsg .=
+                "\n" .
+                getRandomSnatchText(
+                    $pdo,
+                    $config["activePack"],
+                    "daily_loser_start",
+                );
 
             if ($loserTie) {
                 $outputMsg .= getRandomSnatchText(
@@ -970,7 +1179,6 @@ if (
                     ],
                 );
             } else {
-                // Der Verlierer steht eindeutig fest -> Er verliert eine zufällige Karte aus seinem Besitz
                 $stmtCards = $pdo->prepare(
                     "SELECT id, card_name, emoji FROM snatch_cards WHERE user_id = ?",
                 );
@@ -978,10 +1186,8 @@ if (
                 $loserCards = $stmtCards->fetchAll(PDO::FETCH_ASSOC);
 
                 if (!empty($loserCards)) {
-                    // Eine zufällige Karte aus dem Besitz auswählen
                     $lostCard = $loserCards[array_rand($loserCards)];
 
-                    // Karte aus der Datenbank löschen
                     $stmtDelete = $pdo->prepare(
                         "DELETE FROM snatch_cards WHERE id = ?",
                     );
@@ -1018,6 +1224,32 @@ if (
             );
         }
 
+        // ==========================================================
+        // NEU: RANGLISTE ALLER TEILNEHMER (PUNKTE-AUFLISTUNG)
+        // ==========================================================
+        $outputMsg .=
+            "\n📊 **Heutige Platzierungen (" .
+            count($todayLogs) .
+            " Spieler):**\n";
+        $outputMsg .= "--------------------------------------------\n";
+
+        foreach ($todayLogs as $index => $log) {
+            $rank = $index + 1;
+            $name = $log["display_name"] ?? "Unbekannt";
+            $pts = $log["total_points"];
+
+            // Schöne visuelle Kennzeichnung für die Spitze und das Ende
+            if ($rank === 1) {
+                $outputMsg .= "🥇 `#{$rank}` {$pts} Punkte - **{$name}**\n";
+            } elseif ($rank === count($todayLogs) && count($todayLogs) > 1) {
+                $outputMsg .= "💀 `#{$rank}` {$pts} Punkte - **{$name}**\n";
+            } else {
+                $outputMsg .= "▫️ `#{$rank}` {$pts} Punkte - **{$name}**\n";
+            }
+        }
+
+        // Hier zwingen wir das JSON exakt auf die Struktur, die dein Bot erwartet,
+        // und überschreiben etwaige automatische Zusatz-Keys im Array.
         echo json_encode([
             "text" => $outputMsg,
         ]);
@@ -1127,9 +1359,18 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($input));
 curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
 $shineResponse = curl_exec($ch);
+curl_close($ch); // CURL-Handler sauber schließen
+
 $responseArr = json_decode($shineResponse, true) ?? [];
 
-// === HIER DIE ERWEITERUNG FÜR DAS WILLKOMMENS-GESCHENK ===
+// --- NEU: GEWÄHLTES THEME AUSLESEN (BLUFF-SCHUTZ) ---
+// Wir holen uns das vom Spiel ausgewürfelte, verschleierte Theme ab.
+// Falls die API nichts liefert, nutzen wir "gold" als sicheren Fallback.
+$finalTheme = $responseArr["chosen_theme"] ?? "gold";
+
+// ==========================================================
+// HIER DIE ERWEITERUNG FÜR DAS WILLKOMMENS-GESCHENK
+// ==========================================================
 // Wir prüfen, ob im $dbUser (der oben bei $dbUser = getOrCreateUser(...) geladen wurde)
 // ein Geschenk hinterlegt wurde.
 if (!empty($dbUser["gift_card"])) {
@@ -1145,8 +1386,14 @@ if (!empty($dbUser["gift_card"])) {
         "card_name" => $card["name"],
         "card_emoji" => $card["emoji"],
         "card_category" => $card["category"],
+        // NEU: Wir hängen das ermittelte Theme direkt an das Geschenk an!
+        // Dadurch weiß das versteckte Ziehen im Bot/Makro, welchen Look es nutzen muss.
+        "theme" => $finalTheme,
     ];
 }
+
+// (Optional) Wenn du das Theme auch für normale Aktionen außerhalb des Geschenks im Response-Array brauchst:
+$responseArr["active_theme"] = $finalTheme;
 
 // ==========================================================
 // LIVE DETAILED LOGGING (Datei-Backup UND DB-Insert)
@@ -1251,46 +1498,10 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
     // --- GEHEIMER ERSTER ZUG DES TAGES LOGIK (HIER INNERHALB DES SPIELS) ---
     // =========================================================================
 
-    // --- THEME ERMITTLUNG GEMￃﾄSS DEINER REGELN ---
-    // --- THEME ERMITTLUNG GEMÄSS DEINER REGELN ---
-    $userThemeInput = trim($input["theme"] ?? ""); // Was vom Bot/User übergeben wurde (z.B. "Barde", "Zufall", "Alchemie,Barde")
-
-    // 1. Theme-Namen parsen
-    $selectedThemeName = "gold"; // Absoluter Fallback
-
-    if (empty($userThemeInput) || strtolower($userThemeInput) === "default") {
-        // Wenn keins angegeben ist: Server-Default aus snatch_settings holen
-        $stmtThemeSet = $pdo->prepare(
-            "SELECT setting_value FROM snatch_settings WHERE server_id = ? AND setting_key = 'default_theme'",
-        );
-        $stmtThemeSet->execute([$serverId]);
-        $selectedThemeName = $stmtThemeSet->fetchColumn();
-
-        // Wenn für den Server keins gesetzt ist, dann ID 0 holen
-        if (!$selectedThemeName) {
-            $stmtThemeSet->execute(["0"]);
-            $selectedThemeName = $stmtThemeSet->fetchColumn() ?: "gold";
-        }
-    } elseif (
-        strtolower($userThemeInput) === "zufall" ||
-        strtolower($userThemeInput) === "kombo-theme"
-    ) {
-        // Bei Zufall oder Kombo-Theme: Ein völlig zufälliges aus der DB holen
-        $stmtRand = $pdo->query(
-            "SELECT theme_name FROM snatch_themes ORDER BY RAND() LIMIT 1",
-        );
-        $selectedThemeName = $stmtRand->fetchColumn() ?: "gold";
-    } else {
-        // Es wurden spezifische Themes übergeben (kommagetrennt möglich)
-        $themesArray = array_map("trim", explode(",", $userThemeInput));
-        if (count($themesArray) > 1) {
-            // Wenn mehrere angegeben sind, ein zufälliges von diesen wählen
-            $selectedThemeName = $themesArray[array_rand($themesArray)];
-        } else {
-            // Wenn eins angegeben ist, genau das nehmen
-            $selectedThemeName = $themesArray[0];
-        }
-    }
+    // --- THEME ERMITTLUNG (ZENTRALISIERT & BLUFF-SCHUTZ) ---
+    // Wir nutzen direkt das von snatch-game.php ermittelte, verschleierte Theme ($finalTheme).
+    // Falls aus irgendeinem Grund noch kein $finalTheme definiert wurde, greift "gold" als Fallback.
+    $selectedThemeName = $finalTheme ?? "gold";
 
     // Jetzt die echten Farben und Labels aus snatch_themes ziehen
     $stmtGetTheme = $pdo->prepare(
@@ -1301,7 +1512,7 @@ if (!in_array($world, $excludedWorlds) && isset($responseArr["total_points"])) {
 
     // Fallback, falls das gewählte Theme nicht in der DB existiert
     if (!$cfg) {
-        $stmtGetTheme->execute(["Gold"]); // Alchemie oder dein Standard als Ausweichdaten
+        $stmtGetTheme->execute(["Gold"]); // Dein Standard als Ausweichdaten
         $cfg = $stmtGetTheme->fetch(PDO::FETCH_ASSOC);
     }
 

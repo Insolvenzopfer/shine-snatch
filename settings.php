@@ -7,7 +7,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // --- LOGIN CHECK ---
 $is_logged_in = isset($_SESSION["loggedin"]);
 
-// Wenn nicht eingeloggt: Zugriff verweigern (oder per header("Location: login.php"); weiterleiten)
+// Wenn nicht eingeloggt: Zugriff verweigern
 if (!$is_logged_in) { ?>
     <!DOCTYPE html>
     <html lang="de">
@@ -32,7 +32,6 @@ if (!$is_logged_in) { ?>
 // --- DATABASE CONNECTION AUS EXTERNER DATEI ---
 require_once "db.php";
 $pdo = getDatabaseConnection();
-// (Hinweis: Falls db.php im selben Ordner liegt. Passe den Pfad ggf. an!)
 
 $message = "";
 
@@ -43,17 +42,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $serverId = trim($_POST["server_id"] ?? "");
         $settingKey = trim($_POST["setting_key"] ?? "");
         $settingValue = trim($_POST["setting_value"] ?? "");
+        $info = trim($_POST["info"] ?? ""); // NEU: Info auslesen
 
         if ($serverId !== "" && $settingKey !== "" && $settingValue !== "") {
+            // NEU: info in INSERT hinzugefügt
             $stmt = $pdo->prepare(
-                "INSERT INTO snatch_settings (server_id, setting_key, setting_value) VALUES (?, ?, ?)",
+                "INSERT INTO snatch_settings (server_id, setting_key, setting_value, info) VALUES (?, ?, ?, ?)",
             );
-            $stmt->execute([$serverId, $settingKey, $settingValue]);
+            $stmt->execute([$serverId, $settingKey, $settingValue, $info]);
             $message =
                 "<div class='alert success'>Eintrag erfolgreich hinzugefügt!</div>";
         } else {
             $message =
-                "<div class='alert error'>Bitte alle Felder ausfüllen.</div>";
+                "<div class='alert error'>Bitte alle Pflichtfelder ausfüllen.</div>";
         }
     }
 
@@ -62,6 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $serverId = trim($_POST["server_id"] ?? "");
         $settingKey = trim($_POST["setting_key"] ?? "");
         $settingValue = trim($_POST["setting_value"] ?? "");
+        $info = trim($_POST["info"] ?? ""); // NEU: Info auslesen
 
         // Die alten Werte, um den Eintrag eindeutig zu finden
         $oldServerId = trim($_POST["old_server_id"] ?? "");
@@ -73,13 +75,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $oldServerId !== "" &&
             $oldSettingKey !== ""
         ) {
+            // NEU: info in UPDATE hinzugefügt
             $stmt = $pdo->prepare(
-                "UPDATE snatch_settings SET server_id = ?, setting_key = ?, setting_value = ? WHERE server_id = ? AND setting_key = ?",
+                "UPDATE snatch_settings SET server_id = ?, setting_key = ?, setting_value = ?, info = ? WHERE server_id = ? AND setting_key = ?",
             );
             $stmt->execute([
                 $serverId,
                 $settingKey,
                 $settingValue,
+                $info,
                 $oldServerId,
                 $oldSettingKey,
             ]);
@@ -142,7 +146,7 @@ $settings = $stmt->fetchAll();
 
         .container {
             width: 100%;
-            max-width: 1100px;
+            max-width: 1200px; /* Leicht erhöht, da eine Spalte dazugekommen ist */
         }
 
         h1, h2 {
@@ -292,90 +296,103 @@ $settings = $stmt->fetchAll();
                 <input type="text" id="setting_value" name="setting_value" placeholder="z.B. 1 oder gold" required>
             </div>
 
+            <!-- NEU: Info-Feld im Hinzufügen-Formular -->
+            <div class="form-group" style="flex: 1.5;">
+                <label for="info">Beschreibung / Info</label>
+                <input type="text" id="info" name="info" placeholder="Wofür ist dieser Key da?">
+            </div>
+
             <button type="submit" class="btn btn-primary">Speichern</button>
         </form>
     </div>
 
     <div class="card">
-            <h2>📋 Bestehende Konfigurationen (Sortiert nach Key)</h2>
-            <table>
-                <thead>
+        <h2>📋 Bestehende Konfigurationen (Sortiert nach Key)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Setting Key</th>
+                    <th style="width: 20%;">Server ID</th>
+                    <th style="width: 20%;">Setting Value</th>
+                    <th style="width: 25%;">Info / Beschreibung</th> <!-- NEU -->
+                    <th style="width: 15%;">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($settings)): ?>
                     <tr>
-                        <th style="width: 25%;">Setting Key</th>
-                        <th style="width: 25%;">Server ID</th>
-                        <th style="width: 30%;">Setting Value</th>
-                        <th style="width: 20%;">Aktionen</th>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); font-style: italic;">Keine Einträge in der Datenbank gefunden.</td>
                     </tr>
-                </thead>
-                <tbody>
-                                <?php if (empty($settings)): ?>
-                                    <tr>
-                                        <td colspan="4" style="text-align: center; color: var(--text-muted); font-style: italic;">Keine Einträge in der Datenbank gefunden.</td>
-                                    </tr>
-                                <?php
+                <?php // NEU
+                    // NEU
+                    else: ?>
+                    <?php foreach ($settings as $row): ?>
+                        <?php
+                        $valKey = htmlspecialchars(
+                            $row["setting_key"] ?? "",
+                            ENT_QUOTES,
+                            "UTF-8",
+                        );
+                        $valServer = htmlspecialchars(
+                            $row["server_id"] ?? "",
+                            ENT_QUOTES,
+                            "UTF-8",
+                        );
+                        $valValue = htmlspecialchars(
+                            $row["setting_value"] ?? "",
+                            ENT_QUOTES,
+                            "UTF-8",
+                        );
+                        $valInfo = htmlspecialchars(
+                            $row["info"] ?? "",
+                            ENT_QUOTES,
+                            "UTF-8",
+                        );
 
-                                    // Generiere eine sichere ID für das HTML-Formular-Attribut
-                                    // Generiere eine sichere ID für das HTML-Formular-Attribut
-                                    else: ?>
-                                    <?php foreach ($settings as $row): ?>
-                                        <?php
-                                        $valKey = htmlspecialchars(
-                                            $row["setting_key"] ?? "",
-                                            ENT_QUOTES,
-                                            "UTF-8",
-                                        );
-                                        $valServer = htmlspecialchars(
-                                            $row["server_id"] ?? "",
-                                            ENT_QUOTES,
-                                            "UTF-8",
-                                        );
-                                        $valValue = htmlspecialchars(
-                                            $row["setting_value"] ?? "",
-                                            ENT_QUOTES,
-                                            "UTF-8",
-                                        );
+                        $formId = "form-update-" . md5($valKey . $valServer);
+                        ?>
+                        <tr>
+                            <td>
+                                <input type="text" name="setting_key" value="<?= $valKey ?>" class="table-input" form="<?= $formId ?>" required>
+                            </td>
 
-                                        $formId =
-                                            "form-update-" .
-                                            md5($valKey . $valServer);
-                                        ?>
-                                        <tr>
-                                            <td>
-                                                <input type="text" name="setting_key" value="<?= $valKey ?>" class="table-input" form="<?= $formId ?>" required>
-                                            </td>
+                            <td>
+                                <input type="text" name="server_id" value="<?= $valServer ?>" class="table-input" form="<?= $formId ?>" required>
+                            </td>
 
-                                            <td>
-                                                <input type="text" name="server_id" value="<?= $valServer ?>" class="table-input" form="<?= $formId ?>" required>
-                                            </td>
+                            <td>
+                                <input type="text" name="setting_value" value="<?= $valValue ?>" class="table-input" form="<?= $formId ?>" required>
+                            </td>
 
-                                            <td>
-                                                <input type="text" name="setting_value" value="<?= $valValue ?>" class="table-input" form="<?= $formId ?>" required>
-                                            </td>
+                            <!-- NEU: Info-Zelle in der Tabellenzeile -->
+                            <td>
+                                <input type="text" name="info" value="<?= $valInfo ?>" class="table-input" form="<?= $formId ?>" placeholder="Keine Info">
+                            </td>
 
-                                            <td>
-                                                <div class="action-cell">
-                                                    <form id="<?= $formId ?>" method="POST" style="display:none;">
-                                                        <input type="hidden" name="action" value="update">
-                                                        <input type="hidden" name="old_setting_key" value="<?= $valKey ?>">
-                                                        <input type="hidden" name="old_server_id" value="<?= $valServer ?>">
-                                                    </form>
+                            <td>
+                                <div class="action-cell">
+                                    <form id="<?= $formId ?>" method="POST" style="display:none;">
+                                        <input type="hidden" name="action" value="update">
+                                        <input type="hidden" name="old_setting_key" value="<?= $valKey ?>">
+                                        <input type="hidden" name="old_server_id" value="<?= $valServer ?>">
+                                    </form>
 
-                                                    <button type="submit" form="<?= $formId ?>" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;" title="Speichern">💾</button>
+                                    <button type="submit" form="<?= $formId ?>" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;" title="Speichern">💾</button>
 
-                                                    <form method="POST" onsubmit="return confirm('Eintrag wirklich löschen?');" style="margin:0; display:inline-block;">
-                                                        <input type="hidden" name="action" value="delete">
-                                                        <input type="hidden" name="setting_key" value="<?= $valKey ?>">
-                                                        <input type="hidden" name="server_id" value="<?= $valServer ?>">
-                                                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" title="Löschen">🗑️</button>
-                                                    </form>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-            </table>
-        </div>
+                                    <form method="POST" onsubmit="return confirm('Eintrag wirklich löschen?');" style="margin:0; display:inline-block;">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="setting_key" value="<?= $valKey ?>">
+                                        <input type="hidden" name="server_id" value="<?= $valServer ?>">
+                                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" title="Löschen">🗑️</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 </body>

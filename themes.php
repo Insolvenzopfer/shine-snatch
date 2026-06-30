@@ -12,6 +12,38 @@ $apiUrl = $config["api_url"] ?? "themes.php";
 require_once "db.php";
 $pdo = getDatabaseConnection();
 
+// ─── NEU: API-Schnittstelle für den Discord Bot ───────────────────────────
+if (isset($_GET["action"]) && $_GET["action"] === "get_themes_json") {
+    header("Content-Type: application/json; charset=utf-8");
+
+    try {
+        $stmt = $pdo->query(
+            "SELECT theme_name FROM snatch_themes ORDER BY theme_name ASC",
+        );
+        $themeNames = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Beide Sonder-Variablen manuell hinzufügen, falls nicht in der DB
+        if (!in_array("Zufall", $themeNames)) {
+            $themeNames[] = "Zufall";
+        }
+        if (!in_array("Kombo-Theme", $themeNames)) {
+            $themeNames[] = "Kombo-Theme";
+        }
+
+        echo json_encode($themeNames, JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        echo json_encode([
+            "Barde",
+            "Krark",
+            "Drache",
+            "Wein",
+            "Zufall",
+            "Kombo-Theme",
+        ]);
+    }
+    exit();
+}
+
 $colorFields = [
     "colorPrimary",
     "colorGlowMain",

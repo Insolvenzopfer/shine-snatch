@@ -42,12 +42,13 @@ if (version_compare($clientVersion, $currentVersion, "<")) {
 
 /**
  * Kernfunktion für die Theme-Verwaltung (Aus SQL-Datenbank)
+ * Das optische Theme wird nun IMMER verschleiert, um Punkte-Raten zu verhindern!
  */
 function getFinalThemeConfig($themeInput, $bestComboTheme, $pdo)
 {
     global $config;
 
-    // 1. Input-Bereinigung (wie gehabt)
+    // 1. Input-Bereinigung
     if (is_array($themeInput)) {
         if (empty($themeInput)) {
             $themeInput = "";
@@ -85,28 +86,26 @@ function getFinalThemeConfig($themeInput, $bestComboTheme, $pdo)
     }
     $allKeys = array_keys($themes);
 
-    // 3. Fallback: Kombo-Theme abfangen
-    if (
-        str_contains(strtolower($themeInput), "kombo-theme") &&
-        !empty($bestComboTheme)
-    ) {
-        if (isset($themes[$bestComboTheme])) {
+    $lowerThemeInput = strtolower($themeInput);
+
+    // --- DIE VERSCHLEIERUNGS-LOGIK ---
+    // Wir entfernen "kombo-theme" restlos aus den optischen Entscheidungen.
+    $cleanThemeInput = trim(str_replace("kombo-theme", "", $lowerThemeInput));
+    $cleanThemeInput = trim($cleanThemeInput, " ,"); // Führende/folgende Kommas/Leerzeichen entfernen
+
+    // Fall A: Eingabe war nur "kombo-theme" solo ODER enthielt explizit "zufall" -> Völliger Zufall!
+    if ($lowerThemeInput === "kombo-theme" || $cleanThemeInput === "zufall") {
+        if (!empty($allKeys)) {
+            $randKey = $allKeys[array_rand($allKeys)];
             return [
-                "cfg" => $themes[$bestComboTheme],
-                "key" => $bestComboTheme,
-                "mode" => "kombo",
+                "cfg" => $themes[$randKey],
+                "key" => $randKey,
+                "mode" => "zufall",
             ];
         }
     }
 
-    // 4. Komma-separierte Liste prüfen (Sowohl mit als auch ohne "kombo-theme")
-    // Wir reinigen den Input für die Einzel-Checks
-    $cleanThemeInput = trim(
-        str_replace("kombo-theme", "", strtolower($themeInput)),
-    );
-    // Falls durch das Entfernen von kombo-theme führende/folgende Kommas blieben, säubern
-    $cleanThemeInput = trim($cleanThemeInput, ",");
-
+    // Fall B: Komma-separierte Liste von Wunsch-Themes (z.B. nach Entfernen von kombo-theme bleibt "alchemie,barde" übrig)
     if (str_contains($cleanThemeInput, ",")) {
         $possibleThemes = explode(",", $cleanThemeInput);
         $validChoices = [];
@@ -118,7 +117,6 @@ function getFinalThemeConfig($themeInput, $bestComboTheme, $pdo)
             }
         }
 
-        // Wenn gültige Wunsch-Themes gefunden wurden, würfeln!
         if (!empty($validChoices)) {
             $chosenKey = $validChoices[array_rand($validChoices)];
             return [
@@ -129,20 +127,9 @@ function getFinalThemeConfig($themeInput, $bestComboTheme, $pdo)
         }
     }
 
-    // 5. Einzelnes Theme oder "zufall" (wie gehabt)
-    $cleanTheme = str_replace(",", "", $cleanThemeInput);
-
-    if ($cleanTheme === "zufall" && !empty($allKeys)) {
-        $randKey = $allKeys[array_rand($allKeys)];
-        return [
-            "cfg" => $themes[$randKey],
-            "key" => $randKey,
-            "mode" => "zufall",
-        ];
-    }
-
-    if (!empty($cleanTheme) && isset($themeMapLower[$cleanTheme])) {
-        $finalKey = $themeMapLower[$cleanTheme];
+    // Fall C: Ein einzelnes, spezifisches Theme wurde gewünscht (z.B. "alchemie" bei "kombo-theme,alchemie")
+    if (!empty($cleanThemeInput) && isset($themeMapLower[$cleanThemeInput])) {
+        $finalKey = $themeMapLower[$cleanThemeInput];
         return [
             "cfg" => $themes[$finalKey],
             "key" => $finalKey,
@@ -150,7 +137,7 @@ function getFinalThemeConfig($themeInput, $bestComboTheme, $pdo)
         ];
     }
 
-    // Default Fallback
+    // Fall D: Absoluter Default-Fallback (Server-Default), wenn der User gar kein optisches Theme gewählt hat
     $defaultKey =
         $themeMapLower[strtolower($config["default_theme"] ?? "gold")] ??
         ($allKeys[0] ?? null);
@@ -553,8 +540,13 @@ $html =
             $overrideWarning
         </div>";
 
+// HIER DIE ANPASSUNG:
 $response["html"] = $html;
 $response["total_points"] = $total;
 $response["hand_ids"] = implode(",", array_column($hand, "id"));
+
+// NEU: Wir geben den exakten Key des gewählten Designs mit zurück!
+// ($themeResult["key"] hält den Namen des finalen Themes, z.B. "gold" oder "barde")
+$response["chosen_theme"] = $themeResult["key"] ?? "gold";
 
 echo json_encode($response);

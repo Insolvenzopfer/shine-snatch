@@ -540,6 +540,9 @@ sort($extractedPlaceholders);
                                 ); ?></td>
 
                                 <td class="actions-cell">
+                                    <button class="btn-action" title="Als Vorlage kopieren / duplizieren" onclick="duplicateRow(<?php echo htmlspecialchars(
+                                        json_encode($row),
+                                    ); ?>)">📋</button>
                                     <button class="btn-action" title="Bearbeiten" onclick="editRow(<?php echo htmlspecialchars(
                                         json_encode($row),
                                     ); ?>)">✏️</button>
@@ -671,6 +674,78 @@ function showToast(message) {
     setTimeout(() => {
         toast.style.opacity = '0';
     }, 2500);
+}
+// Funktion um eine Zeile als Vorlage zu kopieren (Erstellt neuen Eintrag)
+function duplicateRow(data) {
+    console.log("=== DEBUG: duplicateRow gestartet ===");
+    console.log("Übergebene Rohdaten:", data);
+
+    // 1. Titel anpassen
+    const titleElement = document.getElementById('formTitle');
+    if (titleElement) {
+        titleElement.innerText = "✨ Text-Eintrag duplizieren / neu anlegen";
+        console.log("Formular-Titel wurde geändert.");
+    } else {
+        console.error("FEHLER: Element mit ID 'formTitle' nicht gefunden!");
+    }
+
+    // 2. ID leeren, damit es beim Speichern ein NEUER Eintrag (INSERT) wird
+    const idField = document.getElementById('formId');
+    if (idField) {
+        idField.value = "";
+        console.log("ID-Feld ('formId') wurde geleert (Wert: '" + idField.value + "')");
+    } else {
+        console.error("FEHLER: Element mit ID 'formId' nicht gefunden!");
+    }
+
+    // 3. Die echten IDs aus deiner Datei befüllen (CamelCase beachten!)
+    const packField = document.getElementById('formPack');
+    if (packField) {
+        packField.value = data.text_pack ?? 'default';
+        console.log("Paket-Feld ('formPack') befüllt mit:", packField.value);
+    } else {
+        console.error("FEHLER: Element mit ID 'formPack' nicht gefunden!");
+    }
+
+    const groupField = document.getElementById('formGroup');
+    if (groupField) {
+        groupField.value = data.text_group ?? '';
+        console.log("Gruppen-Feld ('formGroup') befüllt mit:", groupField.value);
+    } else {
+        console.error("FEHLER: Element mit ID 'formGroup' nicht gefunden!");
+    }
+
+    const contentField = document.getElementById('formContent');
+    if (contentField) {
+        contentField.value = data.content ?? '';
+        console.log("Inhalt-Feld ('formContent') befüllt mit:", contentField.value);
+    } else {
+        console.error("FEHLER: Element mit ID 'formContent' nicht gefunden!");
+    }
+
+    const descField = document.getElementById('formDescription');
+    if (descField) {
+        descField.value = data.description ?? '';
+        console.log("Beschreibung ('formDescription') befüllt mit:", descField.value);
+    } else {
+        console.error("FEHLER: Element mit ID 'formDescription' nicht gefunden!");
+    }
+
+    // 4. Buttons zurücksetzen wie beim normalen Add-Modus (da es ja ein neuer Eintrag ist)
+    const submitBtn = document.getElementById('btnSubmit');
+    if (submitBtn) submitBtn.innerText = "Eintrag speichern";
+
+    const resetBtn = document.getElementById('btnReset');
+    if (resetBtn) resetBtn.style.opacity = "none"; // Oder inline-flex, falls du Abbrechen anbieten willst
+
+    // 5. Scrollen
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    console.log("Scroll-Event nach oben ausgelöst.");
+
+    if (typeof showToast === "function") {
+        showToast("Eintrag als Vorlage in das Formular kopiert!");
+    }
+    console.log("=== DEBUG: duplicateRow beendet ===");
 }
 </script>
 </body>
