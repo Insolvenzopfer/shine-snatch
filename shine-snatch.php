@@ -30,9 +30,44 @@ header("Content-Type: application/json; charset=utf-8");
 $config = require "config.php";
 require_once "db.php";
 require_once "../php/telegramsend.php";
-$pdo = getDatabaseConnection();
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+// ----------------------------------------------------------
+// Hauptdaten des aktuellen Spielers laden (KORRIGIERT)
+// ----------------------------------------------------------
+try {
+    // Erzwinge, dass PDO bei Fehlern Exceptions wirft, falls nicht global aktiv
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $dbUser = getOrCreateUser($input, $pdo);
+} catch (PDOException $e) {
+    // Hier lag der Fehler: $input darf nicht direkt als String verkettet werden!
+    echo json_encode([
+        "text" =>
+            "❌ **Datenbankfehler (Integrity/Duplicate Entry)!**\n\n" .
+            "**Meldung:** `" .
+            $e->getMessage() .
+            "`\n" .
+            "**Code:** `" .
+            $e->getCode() .
+            "`\n\n" .
+            "**Übergebene Parameter an API:**\n" .
+            "```json\n" .
+            json_encode($input, JSON_PRETTY_PRINT) .
+            "\n```",
+    ]);
+    exit();
+} catch (Exception $e) {
+    echo json_encode([
+        "text" =>
+            "❌ **Allgemeiner Skriptfehler!**\n" .
+            "**Meldung:** `" .
+            $e->getMessage() .
+            "`",
+    ]);
+    exit();
+}
+
+$actorPing = "**<@{$dbUser["actor_id"]}>**";
 
 // ==========================================================
 // HILFSFUNKTION: Prüft, ob ein User bereits in der DB existiert
@@ -147,7 +182,6 @@ function getRandomSnatchText(
 // ==========================================================
 function getOrCreateUser($input, $pdo, $onlyIfExisting = false)
 {
-    // <-- NEU: optionaler Parameter
     global $config;
     $actorId = !empty($input["actorId"])
         ? trim((string) $input["actorId"])
@@ -162,7 +196,6 @@ function getOrCreateUser($input, $pdo, $onlyIfExisting = false)
         ? trim((string) $input["playerName"])
         : $actorName;
 
-    // --- ZENTRALE DISCORD-PING ERKENNUNG ---
     if ($actorId === null) {
         if (
             str_starts_with($actorName, "<@") &&
@@ -179,117 +212,108 @@ function getOrCreateUser($input, $pdo, $onlyIfExisting = false)
 
     $finalActorId = $actorId ?? trim((string) $actorName);
 
-    // Suche in der Datenbank anhand der ID
-    $stmt = $pdo->prepare(
-        "SELECT * FROM snatch_users WHERE actor_id = ? AND (server_id = ? OR server_id IS NULL OR server_id = '') LIMIT 1",
-    );
-    $stmt->execute([$finalActorId, $serverId]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    try {
+        // 1. SELECT schärfen: Wenn eine Server-ID da ist, primär auf diesem Server suchen
+        $stmt = $pdo->prepare(
+            "SELECT * FROM snatch_users WHERE actor_id = ? AND server_id = ? LIMIT 1",
+        );
+        $stmt->execute([$finalActorId, $serverId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($user) {
-        // NEU: Wenn $onlyIfExisting aktiv ist, verändern wir AUF KEINEN FALL die Namen in der DB
-        if ($onlyIfExisting) {
+        // Fallback: Falls auf dem Server nicht gefunden, nach globalem/leeren Eintrag suchen
+        if (!$user) {
+            $stmt = $pdo->prepare(
+                "SELECT * FROM snatch_users WHERE actor_id = ? AND (server_id IS NULL OR server_id = '') LIMIT 1",
+            );
+            $stmt->execute([$finalActorId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if ($user) {
+            if ($onlyIfExisting) {
+                return $user;
+            }
+
+            $isNameValid =
+                !str_starts_with($actorName, "<@") &&
+                !empty($actorName) &&
+                !str_starts_with(strtolower($actorName), "discord-user-");
+            $isPlayerValid =
+                !str_starts_with($playerName, "<@") &&
+                !empty($playerName) &&
+                !str_starts_with(strtolower($playerName), "discord-user-");
+
+            $newActorName = $isNameValid ? $actorName : $user["actor_name"];
+            $newDisplayName = $isPlayerValid
+                ? $playerName
+                : $user["display_name"];
+            $shouldUpdateServerId =
+                empty($user["server_id"]) && !empty($serverId);
+
+            if (
+                $user["actor_name"] !== $newActorName ||
+                $user["display_name"] !== $newDisplayName ||
+                $shouldUpdateServerId
+            ) {
+                // KORREKTUR: WHERE-Klausel berücksichtigt jetzt die eindeutige ID des Tabelleneintrags!
+                $stmtUpdate = $pdo->prepare(
+                    "UPDATE snatch_users SET actor_name = ?, display_name = ?, server_id = ? WHERE id = ?",
+                );
+                $stmtUpdate->execute([
+                    $newActorName,
+                    $newDisplayName,
+                    $serverId ?? ($user["server_id"] ?? ""),
+                    $user["id"], // Ändert exakt nur diese eine Zeile
+                ]);
+
+                $user["actor_name"] = $newActorName;
+                $user["display_name"] = $newDisplayName;
+                $user["server_id"] = $serverId ?? ($user["server_id"] ?? "");
+            }
             return $user;
         }
 
-        // Falls wir den User über einen Ping gefunden haben, wollen wir seinen actor_name
-        // nicht mit "<@517115...>" überschreiben! Wir updaten nur, wenn es ein echter Name ist.
-        $isNameValid =
+        if ($onlyIfExisting) {
+            return null;
+        }
+
+        $insertActorName =
             !str_starts_with($actorName, "<@") &&
-            !empty($actorName) &&
-            !str_starts_with(strtolower($actorName), "discord-user-");
-        $isPlayerValid =
+            !str_starts_with(strtolower($actorName), "discord-user-")
+                ? $actorName
+                : "User #" . substr($finalActorId, -4);
+        $insertPlayerName =
             !str_starts_with($playerName, "<@") &&
-            !empty($playerName) &&
-            !str_starts_with(strtolower($playerName), "discord-user-");
+            !str_starts_with(strtolower($playerName), "discord-user-")
+                ? $playerName
+                : $insertActorName;
+        $finalServerId = $serverId ?? "";
 
-        $newActorName = $isNameValid ? $actorName : $user["actor_name"];
-        $newDisplayName = $isPlayerValid ? $playerName : $user["display_name"];
+        $stmtInsert = $pdo->prepare(
+            "INSERT INTO snatch_users (actor_id, server_id, actor_name, display_name) VALUES (?, ?, ?, ?)",
+        );
+        $stmtInsert->execute([
+            $finalActorId,
+            $finalServerId,
+            $insertActorName,
+            $insertPlayerName,
+        ]);
 
-        $shouldUpdateServerId = empty($user["server_id"]) && !empty($serverId);
+        $stmt = $pdo->prepare(
+            "SELECT * FROM snatch_users WHERE actor_id = ? AND server_id = ?",
+        );
+        $stmt->execute([$finalActorId, $finalServerId]);
+        $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Nur updaten, wenn sich tatsächlich ein echter Textname oder die Server-ID geändert hat
-        if (
-            $user["actor_name"] !== $newActorName ||
-            $user["display_name"] !== $newDisplayName ||
-            $shouldUpdateServerId
-        ) {
-            $stmtUpdate = $pdo->prepare(
-                "UPDATE snatch_users SET actor_name = ?, display_name = ?, server_id = ? WHERE actor_id = ?",
-            );
-            $stmtUpdate->execute([
-                $newActorName,
-                $newDisplayName,
-                $serverId ?? ($user["server_id"] ?? ""),
-                $finalActorId,
-            ]);
-
-            $user["actor_name"] = $newActorName;
-            $user["display_name"] = $newDisplayName;
-            $user["server_id"] = $serverId ?? ($user["server_id"] ?? "");
-        }
-
-        return $user;
+        return $newUser;
+    } catch (PDOException $e) {
+        // Werfe die Exception weiter nach oben, angereichert mit Kontext-Infos zu den Variablen
+        throw new PDOException(
+            $e->getMessage() .
+                " | Kontext beim Fehler: [finalActorId: $finalActorId, serverId: $serverId, actorName: $actorName, playerName: $playerName]",
+            (int) $e->getCode(),
+        );
     }
-
-    // NEU: Wenn der User nicht existiert und wir ihn nicht anlegen dürfen, brechen wir hier ab!
-    if ($onlyIfExisting) {
-        return null;
-    }
-
-    // Neuer User: Anlage in der Datenbank (wie gehabt)
-    $insertActorName =
-        !str_starts_with($actorName, "<@") &&
-        !str_starts_with(strtolower($actorName), "discord-user-")
-            ? $actorName
-            : "User #" . substr($finalActorId, -4);
-    $insertPlayerName =
-        !str_starts_with($playerName, "<@") &&
-        !str_starts_with(strtolower($playerName), "discord-user-")
-            ? $playerName
-            : $insertActorName;
-
-    $finalServerId = $serverId ?? "";
-
-    $stmtInsert = $pdo->prepare(
-        "INSERT INTO snatch_users (actor_id, server_id, actor_name, display_name) VALUES (?, ?, ?, ?)",
-    );
-    $stmtInsert->execute([
-        $finalActorId,
-        $finalServerId,
-        $insertActorName,
-        $insertPlayerName,
-    ]);
-
-    $stmt = $pdo->prepare(
-        "SELECT * FROM snatch_users WHERE actor_id = ? AND server_id = ?",
-    );
-    $stmt->execute([$finalActorId, $finalServerId]);
-    $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    global $config;
-    $giftEnabled = isset($config["newplayergift"])
-        ? (bool) $config["newplayergift"]
-        : false;
-
-    if ($giftEnabled && $newUser) {
-        $giftCard = generateWeightedCardFromDb($pdo, $config);
-        if ($giftCard) {
-            $stmtGift = $pdo->prepare(
-                "INSERT INTO snatch_cards (user_id, card_id, card_name, emoji, category) VALUES (?, ?, ?, ?, ?)",
-            );
-            $stmtGift->execute([
-                $newUser["id"],
-                $giftCard["id"],
-                $giftCard["name"],
-                $giftCard["emoji"],
-                $giftCard["category"],
-            ]);
-            $newUser["gift_card"] = $giftCard;
-        }
-    }
-
-    return $newUser;
 }
 
 // ==========================================================
@@ -847,7 +871,7 @@ elseif (
         $serverConfig = isset($config[$currentServerId])
             ? $config[$currentServerId]
             : [];
-
+        /*
         $debugKeyExists = array_key_exists("show_all_list", $serverConfig)
             ? "JA"
             : "NEIN";
@@ -856,7 +880,7 @@ elseif (
 
         $output .= "⚠️ *[DEBUG] Für Server {$currentServerId} in DB vorhanden: {$debugKeyExists} | Wert: '{$debugValue}' | Typ: {$debugType}*\n\n";
         // =========================================================================
-
+*/
         // Modus aus der serverspezifischen Konfiguration auslesen (Fallback auf 'userlist')
         $mode = isset($serverConfig["show_all_list"])
             ? trim((string) $serverConfig["show_all_list"])

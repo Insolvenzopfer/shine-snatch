@@ -282,15 +282,13 @@ $settings = $stmt->fetchAll();
             <input type="hidden" name="action" value="add">
 
             <div class="form-group">
-                <label for="server_id">Server ID (0 = Global Default)</label>
-                <input type="text" id="server_id" name="server_id" placeholder="z.B. 9638576473..." required>
-            </div>
-
-            <div class="form-group">
                 <label for="setting_key">Setting Key</label>
                 <input type="text" id="setting_key" name="setting_key" placeholder="z.B. secret_first_pull" required>
             </div>
-
+            <div class="form-group">
+                <label for="server_id">Server ID (0 = Global Default)</label>
+                <input type="text" id="server_id" name="server_id" placeholder="z.B. 9638576473..." required>
+            </div>
             <div class="form-group">
                 <label for="setting_value">Setting Value</label>
                 <input type="text" id="setting_value" name="setting_value" placeholder="z.B. 1 oder gold" required>
@@ -324,6 +322,8 @@ $settings = $stmt->fetchAll();
                         <td colspan="5" style="text-align: center; color: var(--text-muted); font-style: italic;">Keine Einträge in der Datenbank gefunden.</td>
                     </tr>
                 <?php // NEU
+                    // NEU
+                    // NEU
                     // NEU
                     else: ?>
                     <?php foreach ($settings as $row): ?>
